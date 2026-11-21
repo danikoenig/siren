@@ -1,4 +1,6 @@
-## Siren v1.2.1
+## Siren v1.2.2
+
+- **CLAP format** (Bitwig, Reaper ...) in addition to VST3 and Audio Unit. The installer puts it in /Library/Audio/Plug-Ins/CLAP.
 
 Drone generator after the Eurorack module Siren (VST3 / Audio Unit, Apple Silicon).
 

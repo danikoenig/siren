@@ -4,6 +4,7 @@ by Dani Koenig
 This installs Siren as:
 - VST3:       /Library/Audio/Plug-Ins/VST3   (Bitwig, Ableton Live, Cubase, Reaper ...)
 - Audio Unit: /Library/Audio/Plug-Ins/Components   (Logic Pro, GarageBand)
+- CLAP:       /Library/Audio/Plug-Ins/CLAP   (Bitwig, Reaper ...)
 
 Requirements: Apple Silicon Mac (M1 or newer), macOS 11 or newer.
 

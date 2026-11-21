@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Siren VERSION 1.2.1)
+project(Siren VERSION 1.2.2)
 set(CMAKE_CXX_STANDARD 17)
 # JUCE: local path (-DJUCE_PATH=...) or automatic download
 if(DEFINED JUCE_PATH)
@@ -9,6 +9,17 @@ else()
     FetchContent_Declare(JUCE GIT_REPOSITORY https://github.com/juce-framework/JUCE.git GIT_TAG 8.0.6 GIT_SHALLOW ON)
     FetchContent_MakeAvailable(JUCE)
 endif()
+
+# CLAP (Bitwig, Reaper u.a.) ueber clap-juce-extensions
+include(FetchContent)
+FetchContent_Declare(
+    clap-juce-extensions
+    GIT_REPOSITORY https://github.com/free-audio/clap-juce-extensions.git
+    GIT_TAG main
+    GIT_SUBMODULES_RECURSE TRUE
+    EXCLUDE_FROM_ALL)
+FetchContent_MakeAvailable(clap-juce-extensions)
+
 
 set(FORMATS VST3 Standalone)
 if(APPLE)
@@ -34,3 +45,7 @@ target_sources(Siren PRIVATE Source/PluginProcessor.cpp Source/PluginEditor.cpp 
 target_compile_definitions(Siren PUBLIC JUCE_WEB_BROWSER=0 JUCE_USE_CURL=0 JUCE_VST3_CAN_REPLACE_VST2=0)
 target_link_libraries(Siren PRIVATE juce::juce_audio_utils juce::juce_dsp
   PUBLIC juce::juce_recommended_config_flags juce::juce_recommended_warning_flags)
+
+clap_juce_extensions_plugin(TARGET Siren
+    CLAP_ID "ch.danikoenig.siren"
+    CLAP_FEATURES instrument synthesizer stereo)

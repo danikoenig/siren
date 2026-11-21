@@ -30,7 +30,7 @@ jobs:
             -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
 
       - name: Build
-        run: cmake --build build --config Release --target Siren_VST3 Siren_AU Siren_Standalone -j 4
+        run: cmake --build build --config Release --target Siren_VST3 Siren_AU Siren_Standalone Siren_CLAP -j 4
 
       - name: Validate AU (auval)
         continue-on-error: true
@@ -48,10 +48,12 @@ jobs:
           ART=build/Siren_artefacts/Release
           codesign --force --deep --sign - "$ART/VST3/Siren.vst3"
           codesign --force --deep --sign - "$ART/AU/Siren.component"
+          codesign --force --deep --sign - "$ART/CLAP/Siren.clap"
           codesign --force --deep --sign - "$ART/Standalone/Siren.app"
           mkdir -p dist "pkg/Siren"
           cp -R "$ART/VST3/Siren.vst3" "pkg/Siren/"
           cp -R "$ART/AU/Siren.component" "pkg/Siren/"
+          cp -R "$ART/CLAP/Siren.clap" "pkg/Siren/"
           cp INSTALL.txt "pkg/Siren/INSTALL.txt"
           ditto -c -k --keepParent "pkg/Siren" "dist/Siren-VST3-macOS-arm64.zip"
           ditto -c -k --keepParent "$ART/Standalone/Siren.app" "dist/Siren-Standalone-macOS-arm64.zip"
@@ -77,6 +79,14 @@ jobs:
           pkgbuild --root pkgroot-au --component-plist build/pkg/component-au.plist \
             --identifier ch.danikoenig.siren.au --version "$VERSION" \
             --install-location "/Library/Audio/Plug-Ins/Components" build/pkg/SirenAU.pkg
+          # CLAP-Paket
+          mkdir -p pkgroot-clap
+          cp -R "$ART/CLAP/Siren.clap" pkgroot-clap/
+          pkgbuild --analyze --root pkgroot-clap build/pkg/component-clap.plist
+          plutil -replace 0.BundleIsRelocatable -bool NO build/pkg/component-clap.plist
+          pkgbuild --root pkgroot-clap --component-plist build/pkg/component-clap.plist \
+            --identifier ch.danikoenig.siren.clap --version "$VERSION" \
+            --install-location "/Library/Audio/Plug-Ins/CLAP" build/pkg/SirenCLAP.pkg
           sed "s/@VERSION@/$VERSION/g" installer/distribution.xml > build/pkg/distribution.xml
           productbuild --distribution build/pkg/distribution.xml --resources installer/resources \
             --package-path build/pkg "dist/Siren-Installer.pkg"

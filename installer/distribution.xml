@@ -14,6 +14,7 @@
         <line choice="default">
             <line choice="ch.danikoenig.siren.vst3"/>
             <line choice="ch.danikoenig.siren.au"/>
+            <line choice="ch.danikoenig.siren.clap"/>
         </line>
     </choices-outline>
     <choice id="default"/>
@@ -23,6 +24,10 @@
     <choice id="ch.danikoenig.siren.au" visible="false">
         <pkg-ref id="ch.danikoenig.siren.au"/>
     </choice>
+    <choice id="ch.danikoenig.siren.clap" visible="false">
+        <pkg-ref id="ch.danikoenig.siren.clap"/>
+    </choice>
+    <pkg-ref id="ch.danikoenig.siren.clap" version="@VERSION@" onConclusion="none">SirenCLAP.pkg</pkg-ref>
     <pkg-ref id="ch.danikoenig.siren.vst3" version="@VERSION@" onConclusion="none">SirenVST3.pkg</pkg-ref>
     <pkg-ref id="ch.danikoenig.siren.au" version="@VERSION@" onConclusion="none">SirenAU.pkg</pkg-ref>
 </installer-gui-script>

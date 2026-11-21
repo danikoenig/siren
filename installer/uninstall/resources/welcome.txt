@@ -2,7 +2,7 @@ Uninstall Siren
 by Dani Koenig
 
 This removes Siren from your Mac:
-- VST3 and Audio Unit (system and user plug-in folders)
+- VST3, Audio Unit and CLAP (system and user plug-in folders)
 - the Standalone app in Applications, if it is there
 
 Your projects, presets and settings are not touched.
