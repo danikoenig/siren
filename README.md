@@ -15,7 +15,7 @@ Spread = octave spread, Timbre = wavetable position, Index = wavetable, Animate 
 
 **Cross modulation**: FM from bundle C into B and from B into A (phase modulation, one slider each).
 
-**Space**: reverb (decay up to 60 s, pre-delay, tone as LP/HP), then a look-ahead brickwall limiter (3 ms, adjustable ceiling).
+**Space**: reverb (decay up to 60 s, tone as LP/HP), stereo widening with a slow L/R drift, then a look-ahead limiter with threshold and auto gain (ceiling -1 dBFS).
 
 Build: `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build` (JUCE 8.0.6 is downloaded automatically, or pass `-DJUCE_PATH=/path/to/JUCE`)
 Offline engine test: `g++ -O2 -std=c++17 tests/render_test.cpp -o tests/render_test && ./tests/render_test`
