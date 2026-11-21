@@ -124,11 +124,13 @@ HOW TO USE (SHORT)
   TIMBRE = wavetable position, INDEX = wavetable, ANIMATE = auto detune,
   stereo width and LFO speed.
 - BUNDLES A/B/C: 7 oscillators each (low / mid / high) with their own
-  filter (LP / BP / HP) and a manual detune slider per oscillator.
-- LFO MATRIX: 8 LFOs (rate + shape). Click and drag a cell to send an LFO
-  to the pitch of an oscillator (columns 1-21) or the cutoff of a filter
-  (FA, FB, FC). Double-click = 0. PITCH / FILTER DEPTH set the maximum.
-- SHIMMER REVERB: octave-up shimmer. A limiter at the end keeps it safe
+  filter (LP / BP / HP), cutoff, reso, level and a fine DETUNE (supersaw).
+  FM: C modulates B, B modulates A.
+- LFO per bundle: rate, shape, depth. The XY pad decides where it goes:
+  corners = cutoff (top left), reso (top right), level (bottom left),
+  pitch (bottom right). Dot in the middle = a bit of everything.
+- REVERB: normal reverb with long decay (up to 60 s), pre-delay and TONE
+  (left = low-pass, right = high-pass). A limiter at the end keeps it safe
   (the bar shows gain reduction).
 - MIDI: note = root, sustain pedal and pitch bend work.
 
@@ -293,13 +295,14 @@ KURZ ZUR BEDIENUNG
   TIMBRE = Wavetable-Position, INDEX = Wavetable, ANIMATE = Auto-Detune,
   Stereobreite und LFO-Tempo.
 - BUNDLES A/B/C: je 7 Oszillatoren (tief / mittel / hoch) mit eigenem
-  Filter (LP / BP / HP) und einem Detune-Slider pro Oszillator.
-- LFO-MATRIX: 8 LFOs (Rate + Form). Zelle anklicken und ziehen: schickt
-  einen LFO an die Tonhöhe eines Oszillators (Spalten 1-21) oder den
-  Cutoff eines Filters (FA, FB, FC). Doppelklick = 0. PITCH / FILTER DEPTH
-  setzen das Maximum.
-- SHIMMER-REVERB: Oktav-Shimmer. Am Ende sitzt ein Limiter (der Balken
-  zeigt die Gain Reduction).
+  Filter (LP / BP / HP), Cutoff, Reso, Level und feinem DETUNE (Supersaw).
+  FM: C moduliert B, B moduliert A.
+- LFO pro Bundle: Rate, Form, Depth. Das XY-Pad bestimmt das Ziel:
+  Ecken = Cutoff (oben links), Reso (oben rechts), Level (unten links),
+  Pitch (unten rechts). Punkt in der Mitte = von allem etwas.
+- REVERB: normales Reverb mit langem Decay (bis 60 s), Pre-Delay und TONE
+  (links = Tiefpass, rechts = Hochpass). Am Ende sitzt ein Limiter (der
+  Balken zeigt die Gain Reduction).
 - MIDI: Note = Root, Sustain-Pedal und Pitch Bend funktionieren.
 
 

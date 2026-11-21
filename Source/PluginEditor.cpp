@@ -9,132 +9,108 @@ using namespace siren;
 
 namespace
 {
-    constexpr int W = 960, H = 632, margin = 14, gap = 12, headerH = 44;
-    const juce::Colour bundleColour[3] = { juce::Colour (0xff5ce1e6), juce::Colour (0xff4fa3ff), juce::Colour (0xffa78bfa) };
+    constexpr int W = 960, H = 490, margin = 14, gap = 12, headerH = 44;
     const char* bundleName[3] = { "A", "B", "C" };
     const char* bundleRange[3] = { "LOW", "MID", "HIGH" };
-    const juce::Colour posCol { 0xff5ce1e6 }, negCol { 0xffa78bfa };
-}
 
-//==============================================================================
-// Matrix
-juce::Rectangle<float> MatrixComponent::cellRect (int l, int c) const
-{
-    const float cw = ((float) getWidth() - 10.0f) / (float) kMatrixCols, ch = (float) getHeight() / (float) kNumLfo;
-    return { c < kNumOsc ? (float) c * cw : (float) c * cw + 10.0f, (float) l * ch, cw - 2.0f, ch - 2.0f };
-}
-bool MatrixComponent::hit (juce::Point<int> p, int& l, int& c) const
-{
-    for (l = 0; l < kNumLfo; ++l) for (c = 0; c < kMatrixCols; ++c) if (cellRect (l, c).expanded (1.0f).contains (p.toFloat())) return true;
-    return false;
-}
-void MatrixComponent::paint (juce::Graphics& g)
-{
-    for (int l = 0; l < kNumLfo; ++l)
-        for (int c = 0; c < kMatrixCols; ++c)
+    // XY pad: one LFO per bundle, the dot decides where it goes (corners = cutoff, reso, level, pitch)
+    class XYPad : public juce::Component
+    {
+    public:
+        XYPad (juce::AudioProcessorValueTreeState& a, const juce::String& idX, const juce::String& idY, juce::Colour c, std::function<float()> act)
+            : px (*a.getParameter (idX)), py (*a.getParameter (idY)), colour (c), activity (std::move (act)),
+              ax (px, [this] (float) { repaint(); }), ay (py, [this] (float) { repaint(); })
+        { ax.sendInitialUpdate(); ay.sendInitialUpdate(); }
+
+        void paint (juce::Graphics& g) override
         {
-            const auto r = cellRect (l, c);
-            const float v = apvts.getRawParameterValue (SirenProcessor::matrixId (l, c))->load();
-            g.setColour (inset); g.fillRoundedRectangle (r, 3.0f);
-            const bool hot = l == hl && c == hc;
-            g.setColour (hot ? textDim : cardBorder.withAlpha (0.8f)); g.drawRoundedRectangle (r.reduced (0.5f), 3.0f, 1.0f);
-            if (std::abs (v) > 0.01f)
-            {
-                const float half = r.getHeight() * 0.5f - 1.5f, h = half * std::abs (v);
-                const auto col = v > 0 ? posCol : negCol;
-                const auto bar = juce::Rectangle<float> (r.getX() + 2.5f, v > 0 ? r.getCentreY() - h : r.getCentreY(), r.getWidth() - 5.0f, h);
-                g.setColour (col.withAlpha (0.25f)); g.fillRoundedRectangle (bar.expanded (0.0f, 1.0f), 2.0f);
-                g.setColour (col); g.fillRoundedRectangle (bar, 2.0f);
-            }
-            g.setColour (text.withAlpha (0.18f)); g.fillRect (r.getX() + 2.0f, r.getCentreY() - 0.5f, r.getWidth() - 4.0f, 1.0f);
+            auto r = getLocalBounds().toFloat().reduced (0.5f);
+            g.setColour (inset); g.fillRoundedRectangle (r, 6.0f);
+            g.setColour (colour.withAlpha (0.06f)); g.fillRoundedRectangle (r.reduced (1.0f), 5.0f);
+            g.setColour (cardBorder.brighter (0.1f)); g.drawRoundedRectangle (r, 6.0f, 1.0f);
+            g.setColour (text.withAlpha (0.07f));
+            g.drawVerticalLine (juce::roundToInt (r.getCentreX()), r.getY() + 3.0f, r.getBottom() - 3.0f);
+            g.drawHorizontalLine (juce::roundToInt (r.getCentreY()), r.getX() + 3.0f, r.getRight() - 3.0f);
+            g.setColour (textDim); g.setFont (juce::FontOptions (8.5f, juce::Font::bold));
+            auto in = r.reduced (4.0f, 3.0f);
+            g.drawText ("CUT", in, juce::Justification::topLeft); g.drawText ("RESO", in, juce::Justification::topRight);
+            g.drawText ("LEVEL", in, juce::Justification::bottomLeft); g.drawText ("PITCH", in, juce::Justification::bottomRight);
+            const auto pad = r.reduced (10.0f);
+            const float cx = pad.getX() + px.getValue() * pad.getWidth(), cy = pad.getBottom() - py.getValue() * pad.getHeight();
+            const float act = std::abs (activity ? activity() : 0.0f);
+            g.setColour (colour.withAlpha (0.18f)); g.fillEllipse (cx - 11.0f - 5.0f * act, cy - 11.0f - 5.0f * act, 22.0f + 10.0f * act, 22.0f + 10.0f * act);
+            g.setColour (colour); g.fillEllipse (cx - 5.0f, cy - 5.0f, 10.0f, 10.0f);
+            g.setColour (text); g.drawEllipse (cx - 5.0f, cy - 5.0f, 10.0f, 10.0f, 1.2f);
         }
-}
-void MatrixComponent::mouseMove (const juce::MouseEvent& e) { int l, c; if (! hit (e.getPosition(), l, c)) l = c = -1; if (l != hl || c != hc) { hl = l; hc = c; repaint(); } }
-void MatrixComponent::mouseDown (const juce::MouseEvent& e)
-{
-    if (hit (e.getPosition(), dl, dc)) { startValue = param (dl, dc)->convertFrom0to1 (param (dl, dc)->getValue()); param (dl, dc)->beginChangeGesture(); }
-    else dl = dc = -1;
-}
-void MatrixComponent::mouseDrag (const juce::MouseEvent& e)
-{
-    if (dl < 0) return;
-    const float v = juce::jlimit (-1.0f, 1.0f, startValue - (float) e.getDistanceFromDragStartY() / 45.0f);
-    param (dl, dc)->setValueNotifyingHost (param (dl, dc)->convertTo0to1 (v)); repaint();
-}
-void MatrixComponent::mouseUp (const juce::MouseEvent&) { if (dl >= 0) param (dl, dc)->endChangeGesture(); dl = dc = -1; }
-void MatrixComponent::mouseDoubleClick (const juce::MouseEvent& e)
-{
-    int l, c; if (! hit (e.getPosition(), l, c)) return;
-    param (l, c)->beginChangeGesture(); param (l, c)->setValueNotifyingHost (param (l, c)->convertTo0to1 (0.0f)); param (l, c)->endChangeGesture(); repaint();
-}
-void MatrixComponent::mouseWheelMove (const juce::MouseEvent& e, const juce::MouseWheelDetails& w)
-{
-    int l, c; if (! hit (e.getPosition(), l, c)) return;
-    const float v = juce::jlimit (-1.0f, 1.0f, param (l, c)->convertFrom0to1 (param (l, c)->getValue()) + w.deltaY * 0.5f);
-    param (l, c)->setValueNotifyingHost (param (l, c)->convertTo0to1 (v)); repaint();
+        void mouseDown (const juce::MouseEvent& e) override { px.beginChangeGesture(); py.beginChangeGesture(); set (e); }
+        void mouseDrag (const juce::MouseEvent& e) override { set (e); }
+        void mouseUp (const juce::MouseEvent&) override { px.endChangeGesture(); py.endChangeGesture(); }
+        void mouseDoubleClick (const juce::MouseEvent&) override
+        {
+            px.beginChangeGesture(); py.beginChangeGesture();
+            px.setValueNotifyingHost (px.getDefaultValue()); py.setValueNotifyingHost (py.getDefaultValue());
+            px.endChangeGesture(); py.endChangeGesture();
+        }
+    private:
+        void set (const juce::MouseEvent& e)
+        {
+            const auto pad = getLocalBounds().toFloat().reduced (10.5f);
+            px.setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (e.position.x - pad.getX()) / pad.getWidth()));
+            py.setValueNotifyingHost (juce::jlimit (0.0f, 1.0f, (pad.getBottom() - e.position.y) / pad.getHeight()));
+        }
+        juce::RangedAudioParameter& px; juce::RangedAudioParameter& py; juce::Colour colour; std::function<float()> activity;
+        juce::ParameterAttachment ax, ay;
+    };
 }
 
 //==============================================================================
 class SirenEditor::Panel : public juce::Component, private juce::Timer
 {
 public:
-    explicit Panel (SirenProcessor& p) : proc (p), matrix (p.apvts), swellBar ("SWELL", ok), grBar ("LIMITER", clip, true)
+    explicit Panel (SirenProcessor& p) : proc (p), swellBar ("SWELL", ok), grBar ("LIMITER", clip, true)
     {
         setLookAndFeel (&look);
         auto& a = p.apvts;
-        // Drone
-        kRoot.setup (*this, a, "root", "Root", accent); kAttack.setup (*this, a, "attack", "Attack", accent); kRelease.setup (*this, a, "release", "Release", accent);
-        kStagger.setup (*this, a, "stagger", "Stagger", accent); kGlide.setup (*this, a, "glide", "Glide", accent);
+        // Drone (envelope = yellow, like the amp envelope in Quad Shooter)
+        kRoot.setup (*this, a, "root", "Root", accent); kAttack.setup (*this, a, "attack", "Attack", env); kRelease.setup (*this, a, "release", "Release", env);
+        kStagger.setup (*this, a, "stagger", "Stagger", env); kGlide.setup (*this, a, "glide", "Glide", env);
         // Timbre
-        kChord.setup (*this, a, "x", "Chord", accent2); kSpread.setup (*this, a, "y", "Spread", accent2); kTimbre.setup (*this, a, "z", "Timbre", accent2);
-        kIndex.setup (*this, a, "index", "Index", accent2); kAnimate.setup (*this, a, "animate", "Animate", accent2);
-        // Space + out
-        const juce::Colour blue (0xff4fa3ff);
-        kMix.setup (*this, a, "rvMix", "Mix", blue, true); kDecay.setup (*this, a, "rvDecay", "Decay", blue, true);
-        kShimmer.setup (*this, a, "rvShimmer", "Shimmer", blue, true); kTone.setup (*this, a, "rvTone", "Tone", blue, true);
-        kLevel.setup (*this, a, "level", "Level", accent, true); kCeiling.setup (*this, a, "ceiling", "Ceiling", accent, true);
-        // Bundles
+        kChord.setup (*this, a, "x", "Chord", accent); kSpread.setup (*this, a, "y", "Spread", accent); kTimbre.setup (*this, a, "z", "Timbre", accent);
+        kIndex.setup (*this, a, "index", "Index", accent); kAnimate.setup (*this, a, "animate", "Animate", accent);
+        // Reverb + out
+        kMix.setup (*this, a, "rvMix", "Mix", reverbCol, true); kDecay.setup (*this, a, "rvDecay", "Decay", reverbCol, true);
+        kPre.setup (*this, a, "rvPre", "Pre", reverbCol, true); kTone.setup (*this, a, "rvTone", "Tone", reverbCol, true);
+        kTone.slider.getProperties().set ("bipolar", true);
+        kLevel.setup (*this, a, "level", "Level", accent2, true); kCeiling.setup (*this, a, "ceiling", "Ceiling", accent2, true);
         for (int b = 0; b < kNumBundles; ++b)
         {
-            const juce::String s (b);
-            kCut[(size_t) b].setup (*this, a, "cut" + s, "Cutoff", bundleColour[b], true);
-            kRes[(size_t) b].setup (*this, a, "res" + s, "Reso", bundleColour[b], true);
-            kLvl[(size_t) b].setup (*this, a, "lvl" + s, "Level", bundleColour[b], true);
-            kLvl[(size_t) b].slider.getProperties().set ("bipolar", false);
-            type[(size_t) b] = std::make_unique<SegmentSwitch> (*a.getParameter ("type" + s), juce::StringArray { "LP", "BP", "HP" }, bundleColour[b]);
+            const juce::String s (b); const auto col = bundle (b);
+            kCut[(size_t) b].setup (*this, a, "cut" + s, "Cutoff", col, true); kRes[(size_t) b].setup (*this, a, "res" + s, "Reso", col, true);
+            kLvl[(size_t) b].setup (*this, a, "lvl" + s, "Level", col, true); kDet[(size_t) b].setup (*this, a, "bdet" + s, "Detune", col, true);
+            type[(size_t) b] = std::make_unique<SegmentSwitch> (*a.getParameter ("type" + s), juce::StringArray { "LP", "BP", "HP" }, col);
             addAndMakeVisible (*type[(size_t) b]);
-            for (int k = 0; k < kOscPerBundle; ++k)
+            for (auto* sl : { &rate[(size_t) b], &depth[(size_t) b] })
             {
-                const int i = b * kOscPerBundle + k; auto& sl = det[(size_t) i];
-                sl.setSliderStyle (juce::Slider::LinearVertical); sl.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
-                sl.getProperties().set ("accent", bundleColour[b].toString()); sl.getProperties().set ("detune", true);
-                sl.setDoubleClickReturnValue (true, 0.0); addAndMakeVisible (sl);
-                detAtt[(size_t) i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "det" + juce::String (i), sl);
+                sl->setSliderStyle (juce::Slider::LinearBar); sl->setTextBoxStyle (juce::Slider::TextBoxLeft, true, 100, 15);
+                sl->getProperties().set ("accent", col.withAlpha (0.55f).toString()); sl->setColour (juce::Slider::textBoxTextColourId, text);
+                sl->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); sl->setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+                addAndMakeVisible (*sl);
+            }
+            rateAtt[(size_t) b] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "lr" + s, rate[(size_t) b]);
+            depthAtt[(size_t) b] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "ld" + s, depth[(size_t) b]);
+            auto& c = shape[(size_t) b]; c.addItemList ({ "Sine", "Triangle", "Ramp", "Random" }, 1); c.getProperties().set ("accent", col.toString()); addAndMakeVisible (c);
+            shapeAtt[(size_t) b] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (a, "ls" + s, c);
+            pad[(size_t) b] = std::make_unique<XYPad> (a, "lx" + s, "ly" + s, col, [this, b] { return proc.lfoOut[(size_t) b].load(); });
+            addAndMakeVisible (*pad[(size_t) b]);
+            if (b < 2)
+            {
+                auto& f = fm[(size_t) b]; f.setSliderStyle (juce::Slider::LinearBar); f.setTextBoxStyle (juce::Slider::TextBoxLeft, true, 70, 14);
+                f.getProperties().set ("accent", col.withAlpha (0.55f).toString()); f.setColour (juce::Slider::textBoxTextColourId, text);
+                f.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); f.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+                addAndMakeVisible (f); fmAtt[(size_t) b] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, b == 0 ? "fmA" : "fmB", f);
             }
         }
-        for (int b = 0; b < 2; ++b)            // cross modulation: bundle B -> A, bundle C -> B
-        {
-            auto& f = fm[(size_t) b]; f.setSliderStyle (juce::Slider::LinearBar); f.setTextBoxStyle (juce::Slider::TextBoxLeft, true, 70, 14);
-            f.getProperties().set ("accent", bundleColour[b].withAlpha (0.55f).toString()); f.setColour (juce::Slider::textBoxTextColourId, text);
-            f.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); f.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
-            addAndMakeVisible (f); fmAtt[(size_t) b] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, b == 0 ? "fmA" : "fmB", f);
-        }
-        // LFOs
-        for (int l = 0; l < kNumLfo; ++l)
-        {
-            auto& r = rate[(size_t) l]; r.setSliderStyle (juce::Slider::LinearBar); r.setTextBoxStyle (juce::Slider::TextBoxLeft, true, 90, 15);
-            r.getProperties().set ("accent", accent.withAlpha (0.55f).toString()); r.setColour (juce::Slider::textBoxTextColourId, text);
-            r.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); r.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack); addAndMakeVisible (r);
-            rateAtt[(size_t) l] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "rate" + juce::String (l), r);
-            auto& c = shape[(size_t) l]; c.addItemList ({ "Sine", "Tri", "Ramp", "Rand" }, 1); c.getProperties().set ("accent", accent.toString()); addAndMakeVisible (c);
-            shapeAtt[(size_t) l] = std::make_unique<juce::AudioProcessorValueTreeState::ComboBoxAttachment> (a, "shape" + juce::String (l), c);
-        }
-        for (auto* d : { &pitchDepth, &filterDepth })
-        { d->setSliderStyle (juce::Slider::LinearBar); d->setTextBoxStyle (juce::Slider::TextBoxLeft, true, 90, 14); d->setColour (juce::Slider::textBoxTextColourId, text); d->setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); d->setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack); addAndMakeVisible (*d); }
-        pitchDepth.getProperties().set ("accent", accent.withAlpha (0.55f).toString()); filterDepth.getProperties().set ("accent", accent.withAlpha (0.55f).toString());
-        pdAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "pitchDepth", pitchDepth);
-        fdAtt = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "filterDepth", filterDepth);
-        addAndMakeVisible (matrix); addAndMakeVisible (swellBar); addAndMakeVisible (grBar);
+        addAndMakeVisible (swellBar); addAndMakeVisible (grBar);
         drone.getProperties().set ("style", "labelled"); drone.getProperties().set ("accent", accent.toString());
         drone.setClickingTogglesState (true); addAndMakeVisible (drone);
         droneAtt = std::make_unique<juce::AudioProcessorValueTreeState::ButtonAttachment> (a, "gate", drone);
@@ -162,50 +138,40 @@ public:
         {
             g.setColour (SirenColours::card); g.fillRoundedRectangle (r.toFloat(), 10.0f);
             g.setColour (cardBorder); g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 10.0f, 1.0f);
-            g.setColour (c); g.fillRoundedRectangle ((float) r.getX() + 12.0f, (float) r.getY() + 10.0f, 3.0f, 10.0f, 1.5f);
-            g.setColour (textDim); g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
-            g.drawText (title, r.getX() + 21, r.getY() + 8, 200, 14, juce::Justification::centredLeft);
+            g.setColour (c); g.fillEllipse ((float) r.getX() + 13.0f, (float) r.getY() + 11.0f, 7.0f, 7.0f);
+            g.setColour (text.withAlpha (0.85f)); g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.drawText (title, r.getX() + 26, r.getY() + 8, 200, 14, juce::Justification::centredLeft);
         };
-        card (droneCard, "DRONE", accent); card (timbreCard, "TIMBRE", accent2); card (spaceCard, "SHIMMER REVERB", juce::Colour (0xff4fa3ff));
+        card (droneCard, "DRONE", env); card (timbreCard, "TIMBRE", accent); card (spaceCard, "REVERB", reverbCol);
         g.setColour (cardBorder); g.drawVerticalLine (outDivider, (float) spaceCard.getY() + 28.0f, (float) spaceCard.getBottom() - 12.0f);
-        g.setColour (textDim); g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
-        g.drawText ("OUT", outDivider + 10, spaceCard.getY() + 8, 60, 14, juce::Justification::centredLeft);
+        g.setColour (accent2); g.fillEllipse ((float) outDivider + 10.0f, (float) spaceCard.getY() + 11.0f, 7.0f, 7.0f);
+        g.setColour (text.withAlpha (0.85f)); g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+        g.drawText ("OUT", outDivider + 23, spaceCard.getY() + 8, 60, 14, juce::Justification::centredLeft);
 
         // chord name
         const int ci = juce::jlimit (0, (int) chords().size() - 1, juce::roundToInt (proc.apvts.getRawParameterValue ("x")->load() * (float) (chords().size() - 1)));
-        g.setColour (accent2); g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
+        g.setColour (accent); g.setFont (juce::FontOptions (10.5f, juce::Font::bold));
         g.drawText (juce::String (chords()[(size_t) ci].name).toUpperCase(), timbreCard.getRight() - 170, timbreCard.getY() + 8, 158, 14, juce::Justification::centredRight);
 
         for (int b = 0; b < kNumBundles; ++b)
         {
-            const auto r = bundleCard[b]; card (r, juce::String ("BUNDLE ") + bundleName[b] + "  " + bundleRange[b], bundleColour[b]);
+            const auto r = bundleCard[b]; const auto col = bundle (b);
+            g.setColour (SirenColours::card); g.fillRoundedRectangle (r.toFloat(), 10.0f);
+            g.setColour (cardBorder); g.drawRoundedRectangle (r.toFloat().reduced (0.5f), 10.0f, 1.0f);
+            // slot-style badge
+            const auto badge = juce::Rectangle<float> ((float) r.getX() + 12.0f, (float) r.getY() + 7.0f, 22.0f, 22.0f);
+            g.setColour (col); g.fillRoundedRectangle (badge, 5.0f);
+            g.setColour (bgBottom); g.setFont (juce::FontOptions (13.0f, juce::Font::bold)); g.drawText (bundleName[b], badge.toNearestInt(), juce::Justification::centred);
+            g.setColour (text.withAlpha (0.85f)); g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.drawText (juce::String ("BUNDLE ") + bundleRange[b], r.getX() + 42, r.getY() + 11, 120, 14, juce::Justification::centredLeft);
+            g.setColour (cardBorder); g.drawHorizontalLine (r.getY() + lfoY - 6, (float) r.getX() + 12.0f, (float) r.getRight() - 12.0f);
             g.setColour (textDim); g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
-            g.drawText ("DETUNE  +-50 ct", r.getX() + 14, detuneY - 14, 110, 12, juce::Justification::centredLeft);
-            if (b < 2) g.drawText (b == 0 ? "FM FROM B" : "FM FROM C", r.getRight() - 12 - 72 - 66, detuneY - 14, 62, 12, juce::Justification::centredRight);
-            for (int k = 0; k < kOscPerBundle; ++k)
-                g.drawText (juce::String (b * kOscPerBundle + k + 1), detuneX0 + b * 0 + r.getX() - bundleCard[0].getX() + k * detuneStep - 4, detuneY + detuneH + 1, detuneStep, 11, juce::Justification::centredLeft);
-        }
-
-        card (matrixCard, "LFO MATRIX", accent);
-        g.setColour (textDim); g.setFont (juce::FontOptions (10.0f));
-        g.drawText (juce::String::fromUTF8 ("drag cells  \xc2\xb7  double-click = 0"), matrixCard.getX() + 110, matrixCard.getY() + 8, 220, 14, juce::Justification::centredLeft);
-        g.setFont (juce::FontOptions (10.0f, juce::Font::bold));
-        g.drawText ("PITCH DEPTH", pitchDepth.getX() - 82, pitchDepth.getY() - 1, 78, 14, juce::Justification::centredRight);
-        g.drawText ("FILTER DEPTH", filterDepth.getX() - 82, filterDepth.getY() - 1, 78, 14, juce::Justification::centredRight);
-        const auto mb = matrix.getBounds();
-        g.setFont (juce::FontOptions (9.0f, juce::Font::bold));
-        for (int c = 0; c < kMatrixCols; ++c)
-        {
-            const auto cr = matrix.cellRect (0, c);
-            g.setColour (c < kNumOsc ? bundleColour[c / kOscPerBundle].withAlpha (0.9f) : text);
-            g.drawText (c < kNumOsc ? juce::String (c + 1) : juce::String ("F") + "ABC"[c - kNumOsc], mb.getX() + (int) cr.getX() - 3, mb.getY() - 14, (int) cr.getWidth() + 6, 12, juce::Justification::centred);
-        }
-        for (int l = 0; l < kNumLfo; ++l)      // LFO activity dot
-        {
-            const float v = proc.lfoOut[(size_t) l].load() * 0.5f + 0.5f, ry = (float) mb.getY() + ((float) l + 0.5f) * (float) mb.getHeight() / kNumLfo;
-            g.setColour (accent.withAlpha (0.15f + 0.85f * v)); g.fillEllipse ((float) matrixCard.getX() + 20.0f, ry - 4.0f, 8.0f, 8.0f);
-            g.setColour (textDim); g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
-            g.drawText (juce::String (l + 1), matrixCard.getX() + 32, (int) ry - 7, 14, 14, juce::Justification::centredLeft);
+            g.drawText (b < 2 ? (b == 0 ? "FM FROM B" : "FM FROM C") : "FM SOURCE", r.getX() + 14, r.getY() + fmY, 100, 14, juce::Justification::centredLeft);
+            g.drawText ("LFO", r.getX() + 14, r.getY() + lfoY - 1, 40, 12, juce::Justification::centredLeft);
+            g.drawText ("RATE", r.getX() + 14, r.getY() + lfoY + 14, 40, 12, juce::Justification::centredLeft);
+            g.drawText ("SHAPE", r.getX() + 14, r.getY() + lfoY + 44, 40, 12, juce::Justification::centredLeft);
+            g.drawText ("DEPTH", r.getX() + 14, r.getY() + lfoY + 74, 40, 12, juce::Justification::centredLeft);
+            g.drawText ("LFO GOES TO", r.getRight() - 12 - padSize, r.getY() + lfoY - 1, padSize, 12, juce::Justification::centredLeft);
         }
     }
 
@@ -216,74 +182,65 @@ public:
         auto meters = header.removeFromRight (310);
         swellBar.setBounds (meters.removeFromLeft (150).withSizeKeepingCentre (150, 18)); meters.removeFromLeft (10);
         grBar.setBounds (meters.withSizeKeepingCentre (meters.getWidth(), 18));
-        drone.setBounds (header.withTrimmedLeft (250).withSizeKeepingCentre (170, 28).withX (margin + 250));
+        drone.setBounds (margin + 250, header.getY() + (headerH - 28) / 2, 170, 28);
+
+        // all three columns use the same widths in both rows
+        const int colW = (area.getWidth() - 2 * gap) / 3;
+        auto col = [&] (juce::Rectangle<int> row, int i) { return juce::Rectangle<int> (row.getX() + i * (colW + gap), row.getY(), i == 2 ? row.getWidth() - 2 * (colW + gap) : colW, row.getHeight()); };
 
         area.removeFromTop (gap);
         auto row1 = area.removeFromTop (132);
-        const int w1 = 290, w3 = row1.getWidth() - 2 * w1 - 2 * gap;
-        droneCard = row1.removeFromLeft (w1); row1.removeFromLeft (gap); timbreCard = row1.removeFromLeft (w1); row1.removeFromLeft (gap); spaceCard = row1;
-        (void) w3;
+        droneCard = col (row1, 0); timbreCard = col (row1, 1); spaceCard = col (row1, 2);
         Knob::layoutRow (droneCard.reduced (8, 0).withTrimmedTop (26).withTrimmedBottom (6), { &kRoot, &kAttack, &kRelease, &kStagger, &kGlide });
         Knob::layoutRow (timbreCard.reduced (8, 0).withTrimmedTop (26).withTrimmedBottom (6), { &kChord, &kSpread, &kTimbre, &kIndex, &kAnimate });
         auto sp = spaceCard.reduced (6, 0).withTrimmedTop (26).withTrimmedBottom (6);
         auto spReverb = sp.removeFromLeft (sp.getWidth() * 62 / 100); outDivider = spReverb.getRight() + 2;
-        Knob::layoutRow (spReverb, { &kMix, &kDecay, &kShimmer, &kTone }, 15);
+        Knob::layoutRow (spReverb, { &kMix, &kDecay, &kPre, &kTone }, 15);
         Knob::layoutRow (sp.withTrimmedLeft (4), { &kLevel, &kCeiling }, 15);
 
         area.removeFromTop (gap);
-        auto row2 = area.removeFromTop (206);
-        const int bw = (row2.getWidth() - 2 * gap) / 3;
+        auto row2 = area.removeFromTop (262);
         for (int b = 0; b < kNumBundles; ++b)
         {
-            bundleCard[b] = row2.removeFromLeft (bw); row2.removeFromLeft (gap);
-            auto c = bundleCard[b].reduced (12, 0);
-            type[(size_t) b]->setBounds (c.getRight() - 96, bundleCard[b].getY() + 6, 96, 20);
-            auto kr = c.withTrimmedTop (30).withHeight (86);
-            Knob::layoutRow (kr, { &kCut[(size_t) b], &kRes[(size_t) b], &kLvl[(size_t) b] }, 15);
-            if (b < 2) fm[(size_t) b].setBounds (c.getRight() - 72, bundleCard[b].getY() + 142 - 15, 72, 14);
-            detuneY = bundleCard[b].getY() + 142; detuneH = 48; detuneStep = (c.getWidth()) / kOscPerBundle; detuneX0 = bundleCard[0].getX() + 12;
-            for (int k = 0; k < kOscPerBundle; ++k)
-                det[(size_t) (b * kOscPerBundle + k)].setBounds (c.getX() + k * detuneStep, detuneY, detuneStep - 6, detuneH);
+            bundleCard[b] = col (row2, b);
+            const auto r = bundleCard[b]; auto c = r.reduced (12, 0);
+            type[(size_t) b]->setBounds (c.getRight() - 96, r.getY() + 8, 96, 20);
+            Knob::layoutRow (c.withTrimmedTop (32).withHeight (88), { &kCut[(size_t) b], &kRes[(size_t) b], &kLvl[(size_t) b], &kDet[(size_t) b] }, 15);
+            if (b < 2) fm[(size_t) b].setBounds (c.getRight() - 150, r.getY() + fmY, 150, 14);
+            const int ly = r.getY() + lfoY;
+            const int lw = c.getWidth() - padSize - 12;
+            rate[(size_t) b].setBounds (c.getX() + 40, ly + 12, lw - 40, 15);
+            shape[(size_t) b].setBounds (c.getX() + 40, ly + 40, lw - 40, 20);
+            depth[(size_t) b].setBounds (c.getX() + 40, ly + 72, lw - 40, 15);
+            pad[(size_t) b]->setBounds (c.getRight() - padSize, ly + 12, padSize, padSize - 12);
         }
-
-        area.removeFromTop (gap);
-        matrixCard = area;
-        const int gx = matrixCard.getX() + 16 + 176, gy = matrixCard.getY() + 40;
-        matrix.setBounds (gx, gy, matrixCard.getRight() - 16 - gx, 17 * kNumLfo);
-        for (int l = 0; l < kNumLfo; ++l)
-        {
-            const int y = gy + l * 17 + 1;
-            rate[(size_t) l].setBounds (matrixCard.getX() + 48, y, 86, 15); shape[(size_t) l].setBounds (matrixCard.getX() + 140, y, 54, 15);
-        }
-        pitchDepth.setBounds (matrixCard.getRight() - 16 - 100 - 82 - 100 - 82 + 82, matrixCard.getY() + 7, 100, 14);
-        filterDepth.setBounds (matrixCard.getRight() - 16 - 100, matrixCard.getY() + 7, 100, 14);
     }
 
 private:
     void timerCallback() override
     {
         swellBar.set (proc.envOut.load());
-        grBar.set (juce::jlimit (0.0f, 1.0f, -proc.grDb.load() / 12.0f));
         const float gr = juce::jlimit (0.0f, 1.0f, -proc.grDb.load() / 12.0f);
+        grBar.set (gr);
         const float old = (float) kCeiling.slider.getProperties().getWithDefault ("grLight", 0.0);
         if (std::abs (gr - old) > 0.005f) { kCeiling.slider.getProperties().set ("grLight", gr); kCeiling.slider.repaint(); }
         repaint();
     }
 
+    static constexpr int fmY = 124, lfoY = 150, padSize = 112;
     SirenProcessor& proc;
     SirenLookAndFeel look;
-    Knob kRoot, kAttack, kRelease, kStagger, kGlide, kChord, kSpread, kTimbre, kIndex, kAnimate, kMix, kDecay, kShimmer, kTone, kLevel, kCeiling;
-    std::array<Knob, kNumBundles> kCut, kRes, kLvl;
+    Knob kRoot, kAttack, kRelease, kStagger, kGlide, kChord, kSpread, kTimbre, kIndex, kAnimate, kMix, kDecay, kPre, kTone, kLevel, kCeiling;
+    std::array<Knob, kNumBundles> kCut, kRes, kLvl, kDet;
     std::array<std::unique_ptr<SegmentSwitch>, kNumBundles> type;
-    std::array<juce::Slider, kNumOsc> det; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, kNumOsc> detAtt;
-    std::array<juce::Slider, kNumLfo> rate; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, kNumLfo> rateAtt;
-    std::array<juce::ComboBox, kNumLfo> shape; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>, kNumLfo> shapeAtt;
+    std::array<juce::Slider, kNumBundles> rate, depth; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, kNumBundles> rateAtt, depthAtt;
+    std::array<juce::ComboBox, kNumBundles> shape; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>, kNumBundles> shapeAtt;
+    std::array<std::unique_ptr<XYPad>, kNumBundles> pad;
     std::array<juce::Slider, 2> fm; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 2> fmAtt;
-    juce::Slider pitchDepth, filterDepth; std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pdAtt, fdAtt;
     juce::ToggleButton drone { "START DRONE" }; std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> droneAtt;
-    MatrixComponent matrix; LevelBar swellBar, grBar;
-    juce::Rectangle<int> droneCard, timbreCard, spaceCard, matrixCard; std::array<juce::Rectangle<int>, kNumBundles> bundleCard;
-    int outDivider = 0, detuneY = 0, detuneH = 0, detuneStep = 0, detuneX0 = 0;
+    LevelBar swellBar, grBar;
+    juce::Rectangle<int> droneCard, timbreCard, spaceCard; std::array<juce::Rectangle<int>, kNumBundles> bundleCard;
+    int outDivider = 0;
 };
 
 //==============================================================================

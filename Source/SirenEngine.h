@@ -1,7 +1,7 @@
 #pragma once
 // Siren drone engine. JUCE-free so it can be tested offline.
-// 21 oscillators (Just Intonation triad stacks) in 3 bundles of 7, 8 LFOs with a
-// modulation matrix, one filter per bundle, shimmer reverb and a look-ahead limiter.
+// 21 oscillators (Just Intonation stacks) in 3 bundles of 7, one LFO and one filter per bundle,
+// bundle cross-modulation, reverb and a look-ahead limiter.
 #include <array>
 #include <vector>
 #include <cmath>
@@ -10,8 +10,7 @@
 
 namespace siren
 {
-constexpr int kNumOsc = 21, kNumBundles = 3, kOscPerBundle = 7, kNumLfo = 8;
-constexpr int kMatrixCols = kNumOsc + kNumBundles;   // 21 pitch targets + 3 filter cutoffs
+constexpr int kNumOsc = 21, kNumBundles = 3, kOscPerBundle = 7, kNumLfo = 3;   // one LFO per bundle
 constexpr int kControlBlock = 32;
 constexpr double kTwoPi = 6.283185307179586;
 
@@ -98,21 +97,26 @@ inline double stackLog2(int chord, int i, double y)
 inline double hash01(int i, double seed) { const double s = std::sin(i * 78.233 + seed) * 43758.5453; return s - std::floor(s); }
 
 // ------------------------------------------------------------------- params
+// One LFO per bundle. The XY pad position mixes where it goes: corners = cutoff (top left), resonance (top right),
+// level (bottom left), pitch (bottom right); the centre sends 50 % to each.
+struct LfoSlot { float rate = 0.1f; int shape = 0; float depth = 0.0f; float padX = 0.15f, padY = 0.85f; };
+
+struct Bundle
+{
+    int type = 0; float cutoff = 2000.0f, res = 0.2f, levelDb = 0.0f, detuneCents = 4.0f;   // detune = spread across the 7 oscillators
+    LfoSlot lfo{};
+};
+
 struct Params
 {
     float x = 0.2f, y = 0.5f, z = 0.4f, index = 0.0f, animate = 0.3f;
-    float attack = 12.0f, release = 20.0f, stagger = 0.6f, glide = 0.5f;   // seconds, stagger 0..1
+    float attack = 12.0f, release = 6.0f, stagger = 0.6f, glide = 0.5f;    // seconds, stagger 0..1
     bool gate = false; float rootNote = 48.0f;                              // MIDI note number (float: pitch bend)
-    std::array<float, kNumOsc> detune{};                                    // cents, manual
-    std::array<float, kNumLfo> lfoRate{}; std::array<int, kNumLfo> lfoShape{};
-    float matrix[kNumLfo][kMatrixCols] = {};                                // -1..1
-    float pitchDepthCents = 25.0f, filterDepthOct = 2.0f;
-    struct Bundle { int type = 0; float cutoff = 2000.0f, res = 0.2f, levelDb = 0.0f; };
     std::array<Bundle, kNumBundles> bundle{};
-    float levelDb = -12.0f;
-    float rvMix = 0.35f, rvDecay = 8.0f, rvShimmer = 0.4f, rvTone = 0.6f;
-    float ceilingDb = -1.0f;
     float fmIntoA = 0.0f, fmIntoB = 0.0f;                                   // 0..1: bundle B -> A, bundle C -> B (phase modulation)
+    float levelDb = -12.0f;
+    float rvMix = 0.3f, rvDecay = 8.0f, rvPreMs = 20.0f, rvTone = 0.0f;     // tone: -1 lowpass .. +1 highpass
+    float ceilingDb = -1.0f;
 };
 
 // ----------------------------------------------------------------- filters
@@ -133,33 +137,9 @@ struct SVF
     }
 };
 
-// ------------------------------------------------------------ shimmer reverb
-// octave-up pitch shifter: two cross-faded delay taps
-struct PitchShift
-{
-    std::vector<float> buf; int w = 0, W = 1; double phase = 0; float lp = 0;
-    void prepare(double sr) { W = (int) (0.06 * sr); buf.assign((size_t) W * 2 + 8, 0.0f); w = 0; phase = 0; lp = 0; }
-    float process(float in)
-    {
-        const int sz = (int) buf.size();
-        buf[(size_t) w] = in;
-        phase += 1.0 / W; phase -= std::floor(phase);
-        float out = 0;
-        for (int t = 0; t < 2; ++t)
-        {
-            double ph = phase + 0.5 * t; ph -= std::floor(ph);
-            const double d = 1.0 + W * (1.0 - ph); const float win = (float) std::pow(std::sin(3.14159265358979 * ph), 2.0);
-            double rp = w - d; while (rp < 0) rp += sz;
-            const int i0 = (int) rp; const float fr = (float) (rp - i0);
-            out += win * (buf[(size_t) (i0 % sz)] * (1.0f - fr) + buf[(size_t) ((i0 + 1) % sz)] * fr);
-        }
-        if (++w >= sz) w = 0;
-        lp += 0.35f * (out - lp);
-        return lp;
-    }
-};
-
-class ShimmerReverb
+// ------------------------------------------------------------------- reverb
+// 8-line feedback delay network with Hadamard mixing, input diffusion, pre-delay and a bipolar tone filter on the wet signal.
+class Reverb
 {
 public:
     void prepare(double sampleRate)
@@ -169,25 +149,32 @@ public:
         for (int i = 0; i < 8; ++i) { len[i] = (float) (ms[i] * 0.001 * sr); line[i].assign((size_t) len[i] + 256, 0.0f); w[i] = 0; lp[i] = 0; }
         static const int ap[4] = { 142, 107, 379, 277 };
         for (int i = 0; i < 4; ++i) { apLen[i] = std::max(8, (int) (ap[i] * sr / 29500.0)); apBuf[i].assign((size_t) apLen[i], 0.0f); apPos[i] = 0; }
-        shFF.prepare(sr); shFB.prepare(sr); wetPrev = 0;
-        lfoPh = 0;
+        pre.assign((size_t) (0.3 * sr) + 8, 0.0f); preW = 0; lfoPh = 0; toneL = toneR = SVF();
     }
 
-    void process(float inL, float inR, float& outL, float& outR, float mix, float decaySec, float shimmer, float tone)
+    void set(float mixAmt, float decaySec, float preMs, float tone)
+    {
+        mix = mixAmt; decay = std::max(0.2f, decaySec); preSamples = std::min((int) pre.size() - 2, (int) (preMs * 0.001 * sr)); toneAmt = tone;
+        if (tone < -0.01f) { toneL.set(20000.0 * std::pow(0.02, -(double) tone), sr, 0.0f); toneR = toneL; toneType = 0; }
+        else if (tone > 0.01f) { toneL.set(30.0 * std::pow(60.0, (double) tone), sr, 0.0f); toneR = toneL; toneType = 2; }
+    }
+
+    void process(float inL, float inR, float& outL, float& outR)
     {
         float x = 0.5f * (inL + inR);
+        pre[(size_t) preW] = x;
+        int rp0 = preW - preSamples; if (rp0 < 0) rp0 += (int) pre.size();
+        x = pre[(size_t) rp0]; if (++preW >= (int) pre.size()) preW = 0;
         for (int i = 0; i < 4; ++i)                                // input diffusion
         {
             float& s = apBuf[i][(size_t) apPos[i]]; const float y = s - 0.6f * x; s = x + 0.6f * y; x = y;
             if (++apPos[i] >= apLen[i]) apPos[i] = 0;
         }
-        const float shF = shFF.process(x), shB = shFB.process(wetPrev);   // feed-forward octave + regenerating feedback octaves
         // energy-normalised injection: steady-state wet level ~ input level regardless of decay time
-        const float gAvg = std::pow(10.0f, -3.0f * 0.05f / std::max(0.2f, decaySec));
-        const float inj = (x + shimmer * (0.9f * shF + 1.2f * shB)) * 0.35355339f * std::sqrt(std::max(1e-4f, 1.0f - gAvg * gAvg));
+        const float gAvg = std::pow(10.0f, -3.0f * 0.05f / decay);
+        const float inj = x * 0.35355339f * std::sqrt(std::max(1e-4f, 1.0f - gAvg * gAvg));
 
         lfoPh += 0.35 / sr; lfoPh -= std::floor(lfoPh);
-        const float damp = 0.08f + 0.9f * tone * tone;   // lowpass coef (tone = brightness)
         float y[8];
         for (int i = 0; i < 8; ++i)
         {
@@ -196,23 +183,22 @@ public:
             while (rp < 0) rp += (float) sz;
             const int i0 = (int) rp; const float fr = rp - (float) i0; const int i1 = (i0 + 1) % sz;
             const float v = line[i][(size_t) (i0 % sz)] * (1.0f - fr) + line[i][(size_t) i1] * fr;
-            lp[i] += damp * (v - lp[i]);
+            lp[i] += 0.55f * (v - lp[i]);                          // fixed damping: highs decay a bit faster
             y[i] = lp[i];
         }
-        // Hadamard feedback matrix (8x8, scaled)
         float h[8]; for (int i = 0; i < 8; ++i) h[i] = y[i];
         for (int s = 1; s < 8; s <<= 1)
             for (int i = 0; i < 8; i += s * 2) for (int j = i; j < i + s; ++j) { const float a = h[j], b = h[j + s]; h[j] = a + b; h[j + s] = a - b; }
         const float norm = 0.35355339f;
         for (int i = 0; i < 8; ++i)
         {
-            const float g = std::pow(10.0f, -3.0f * (len[i] / (float) sr) / std::max(0.2f, decaySec));
+            const float g = std::pow(10.0f, -3.0f * (len[i] / (float) sr) / decay);
             const int sz = (int) line[i].size();
             line[i][(size_t) w[i]] = inj * ((i & 1) ? -1.0f : 1.0f) + h[i] * norm * g;
             if (++w[i] >= sz) w[i] = 0;
         }
-        const float wl = 0.7f * (y[0] + y[2] + y[4] + y[6]), wr = 0.7f * (y[1] + y[3] + y[5] + y[7]);
-        wetPrev = std::tanh(0.5f * (wl + wr));
+        float wl = 0.7f * (y[0] + y[2] + y[4] + y[6]), wr = 0.7f * (y[1] + y[3] + y[5] + y[7]);
+        if (std::abs(toneAmt) > 0.01f) { wl = toneL.process(wl, toneType); wr = toneR.process(wr, toneType); }
         outL = inL * (1.0f - mix) + wl * mix;
         outR = inR * (1.0f - mix) + wr * mix;
     }
@@ -221,7 +207,7 @@ private:
     double sr = 48000, lfoPh = 0;
     std::array<std::vector<float>, 8> line; std::array<float, 8> len{}, lp{}; std::array<int, 8> w{};
     std::array<std::vector<float>, 4> apBuf; std::array<int, 4> apLen{}, apPos{};
-    PitchShift shFF, shFB; float wetPrev = 0;
+    std::vector<float> pre; int preW = 0, preSamples = 0, toneType = 0; float mix = 0, decay = 8, toneAmt = 0; SVF toneL, toneR;
 };
 
 // ------------------------------------------------------------------ limiter
@@ -266,11 +252,11 @@ public:
         for (int i = 0; i < kNumOsc; ++i) { phase[i] = hash01(i, 1.0); incSm[i] = 0; gainL[i] = gainR[i] = 0; }
         for (int l = 0; l < kNumLfo; ++l) { lfoPhase[l] = hash01(l, 7.0); lfoPrev[l] = 0; lfoTgt[l] = (float) (hash01(l, 2.0) * 2 - 1); lfoVal[l] = 0; }
         for (auto& f : filt) for (auto& s : f) s = SVF();
-        env = 0; first = true; lfoVal.fill(0);
+        env = 0; first = true; bundleGainSm.fill(1.0f);
     }
     int latencySamples() const { return limiter.latency(); }
-    float getLfo(int i) const { return lfoVal[(size_t) i]; }
     float getEnvelope() const { return env; }
+    float getLfo(int i) const { return lfoVal[(size_t) i]; }
     float getReductionDb() const { return 20.0f * std::log10(std::max(1e-4f, limiter.lastGain())); }
 
     void process(const Params& p, float* L, float* R, int n)
@@ -302,11 +288,12 @@ public:
                 float l = 0, r = 0;
                 for (int b = 0; b < kNumBundles; ++b)
                 {
-                    l += filt[b][0].process(bl[b], p.bundle[(size_t) b].type) * bundleGain[b];
-                    r += filt[b][1].process(br[b], p.bundle[(size_t) b].type) * bundleGain[b];
+                    bundleGainSm[(size_t) b] += 0.004f * (bundleGain[(size_t) b] - bundleGainSm[(size_t) b]);
+                    l += filt[(size_t) b][0].process(bl[b], p.bundle[(size_t) b].type) * bundleGainSm[(size_t) b];
+                    r += filt[(size_t) b][1].process(br[b], p.bundle[(size_t) b].type) * bundleGainSm[(size_t) b];
                 }
                 l *= outGain; r *= outGain;
-                reverb.process(l, r, l, r, p.rvMix, p.rvDecay, p.rvShimmer, p.rvTone);
+                reverb.process(l, r, l, r);
                 limiter.process(l, r, p.ceilingDb);
                 L[pos + s] = l; R[pos + s] = r;
             }
@@ -322,7 +309,7 @@ private:
             case 0: return (float) std::sin(kTwoPi * ph);
             case 1: return (float) (1.0 - 4.0 * std::abs(ph - 0.5));
             case 2: return (float) (2.0 * ph - 1.0);
-            default: { const float t = (float) ph, s = t * t * (3 - 2 * t); return lfoPrev[l] + (lfoTgt[l] - lfoPrev[l]) * s; }
+            default: { const float t = (float) ph, s = t * t * (3 - 2 * t); return lfoPrev[(size_t) l] + (lfoTgt[(size_t) l] - lfoPrev[(size_t) l]) * s; }
         }
     }
 
@@ -334,13 +321,22 @@ private:
         env = std::min(1.0f, std::max(0.0f, env));
         const float motion = 0.25f + 0.75f * env;                 // modulation grows with the swell
 
+        // one LFO per bundle, routed by the XY pad
         const double speed = 1.0 + p.animate * 3.0;
-        for (int l = 0; l < kNumLfo; ++l)
+        float cutMod[kNumBundles] = {}, resMod[kNumBundles] = {}, lvlMod[kNumBundles] = {}, pitchMod[kNumBundles] = {};
+        for (int b = 0; b < kNumBundles; ++b)
         {
-            const double old = lfoPhase[l];
-            lfoPhase[l] += p.lfoRate[(size_t) l] * speed * dt; lfoPhase[l] -= std::floor(lfoPhase[l]);
-            if (lfoPhase[l] < old) { lfoPrev[l] = lfoTgt[l]; lfoTgt[l] = (float) (hash01((int) (++rnd), 4.0 + l) * 2 - 1); }
-            lfoVal[(size_t) l] = lfoShape(l, p.lfoShape[(size_t) l], lfoPhase[l]);
+            const int l = b; const auto& sl = p.bundle[(size_t) b].lfo;
+            const double old = lfoPhase[(size_t) l];
+            lfoPhase[(size_t) l] += sl.rate * speed * dt; lfoPhase[(size_t) l] -= std::floor(lfoPhase[(size_t) l]);
+            if (lfoPhase[(size_t) l] < old) { lfoPrev[(size_t) l] = lfoTgt[(size_t) l]; lfoTgt[(size_t) l] = (float) (hash01((int) (++rnd), 4.0 + l) * 2 - 1); }
+            const float v = lfoShape(l, sl.shape, lfoPhase[(size_t) l]); lfoVal[(size_t) l] = v;
+            const float x = std::min(1.0f, std::max(0.0f, sl.padX)), y = std::min(1.0f, std::max(0.0f, sl.padY));
+            auto wgt = [](float w) { return std::min(1.0f, 2.0f * w); };       // corner = 100 %, centre = 50 % each
+            const float wCut = wgt((1 - x) * y), wRes = wgt(x * y), wLvl = wgt((1 - x) * (1 - y)), wPitch = wgt(x * (1 - y));
+            const float m = sl.depth * motion * v;
+            cutMod[b] = m * wCut; resMod[b] = m * wRes; pitchMod[b] = m * wPitch;
+            lvlMod[b] = sl.depth * motion * (v - 1.0f) * 0.5f * wLvl;
         }
 
         auto cl = [](float v) { return std::min(1.0f, std::max(0.0f, v)); };
@@ -352,12 +348,12 @@ private:
         const float yv = cl(p.y), av = cl(p.animate);
 
         const double rootHz = 440.0 * std::pow(2.0, (p.rootNote - 69.0) / 12.0);
-        const float width = 0.25f + 0.75f * av;
         for (int i = 0; i < kNumOsc; ++i)
         {
-            float mod = 0; for (int l = 0; l < kNumLfo; ++l) mod += p.matrix[l][i] * lfoVal[(size_t) l];
+            const int b = i / kOscPerBundle, k = i % kOscPerBundle;
             const double l2 = (1.0 - cf) * stackLog2(c0, i, yv) + cf * stackLog2(c1, i, yv);
-            const double cents = p.detune[(size_t) i] + av * 15.0 * (hash01(i, 5.0) * 2.0 - 1.0) + p.pitchDepthCents * motion * mod;
+            // supersaw-style spread inside the bundle (symmetric), a touch of random detune with Animate, bundle pitch LFO
+            const double cents = p.bundle[(size_t) b].detuneCents * (k - 3) / 3.0 + av * 4.0 * (hash01(i, 5.0) * 2.0 - 1.0) + 30.0 * pitchMod[b];
             incTarget[i] = std::min(0.45, rootHz * std::pow(2.0, l2 + cents / 1200.0) / sr);
             if (first) incSm[i] = incTarget[i];
 
@@ -365,31 +361,37 @@ private:
             const float raw = std::min(1.0f, std::max(0.0f, env * (1.0f + p.stagger) - p.stagger * (float) i / (kNumOsc - 1)));
             const float eg = raw * raw * (3.0f - 2.0f * raw);
             const float a = eg * 1.414f / std::sqrt((float) kNumOsc);
-            const float pan = width * (float) (hash01(i, 9.0) * 2.0 - 1.0), ang = (pan * 0.5f + 0.5f) * 1.5707963f;
+            // balanced stereo: oscillators are panned in mirrored pairs (the 21st sits in the centre)
+            const int pairIdx = i / 2; const float side = (i & 1) ? -1.0f : 1.0f;
+            const float width = 0.25f + 0.75f * av;
+            const float pan = i == kNumOsc - 1 ? 0.0f : side * width * (0.35f + 0.65f * (float) hash01(pairIdx, 9.0));
+            const float ang = (pan * 0.5f + 0.5f) * 1.5707963f;
             tgtL[i] = a * std::cos(ang); tgtR[i] = a * std::sin(ang);
             if (first) { gainL[i] = tgtL[i]; gainR[i] = tgtR[i]; }
         }
         first = false;
         for (int b = 0; b < kNumBundles; ++b)
         {
-            float m = 0; for (int l = 0; l < kNumLfo; ++l) m += p.matrix[l][kNumOsc + b] * lfoVal[(size_t) l];
-            m = std::min(1.5f, std::max(-1.5f, m));
-            const double fc = p.bundle[(size_t) b].cutoff * std::pow(2.0, p.filterDepthOct * motion * m);
-            for (int c = 0; c < 2; ++c) filt[b][(size_t) c].set(fc, sr, p.bundle[(size_t) b].res);
-            bundleGain[b] = std::pow(10.0f, p.bundle[(size_t) b].levelDb / 20.0f);
+            const auto& bu = p.bundle[(size_t) b];
+            const double fc = bu.cutoff * std::pow(2.0, 2.5 * cutMod[b]);
+            const float res = std::min(1.0f, std::max(0.0f, bu.res + 0.5f * resMod[b]));
+            for (int c = 0; c < 2; ++c) filt[(size_t) b][(size_t) c].set(fc, sr, res);
+            bundleGain[(size_t) b] = std::pow(10.0f, bu.levelDb / 20.0f) * std::min(1.0f, std::max(0.0f, 1.0f + lvlMod[b]));
         }
         fmAmt = { 3.0f * p.fmIntoA * p.fmIntoA, 3.0f * p.fmIntoB * p.fmIntoB, 0.0f };   // quadratic taper, up to 3 cycles of phase
-        outGain = std::pow(10.0f, p.levelDb / 20.0f);
+        outGain = std::pow(10.0f, p.levelDb / 20.0f) * kOutputTrim;
+        reverb.set(p.rvMix, p.rvDecay, p.rvPreMs, p.rvTone);
         smoothCoef = 1.0 - std::exp(-1.0 / (std::max(0.01f, p.glide) * sr));
         gainCoef = (float) (1.0 - std::exp(-1.0 / (0.02 * sr)));
     }
 
-    Wavetables wt; ShimmerReverb reverb; Limiter limiter;
+    static constexpr float kOutputTrim = 0.5f;
+    Wavetables wt; Reverb reverb; Limiter limiter;
     double sr = 48000.0;
     std::array<double, kNumOsc> phase{}, incTarget{}, incSm{};
     std::array<double, kNumLfo> lfoPhase{}; std::array<float, kNumLfo> lfoVal{}, lfoPrev{}, lfoTgt{};
     std::array<float, kNumOsc> tgtL{}, tgtR{}, gainL{}, gainR{};
-    std::array<std::array<SVF, 2>, kNumBundles> filt{}; std::array<float, kNumBundles> bundleGain{}, fmAmt{};
+    std::array<std::array<SVF, 2>, kNumBundles> filt{}; std::array<float, kNumBundles> bundleGain{}, bundleGainSm{}, fmAmt{};
     int tableIdx = 0; float frame = 0, outGain = 1, env = 0; double smoothCoef = 0.001; float gainCoef = 0.01f; bool first = true; uint32_t rnd = 1;
 };
 } // namespace siren

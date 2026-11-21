@@ -2,13 +2,6 @@
 #include "PluginEditor.h"
 using namespace juce;
 
-float SirenProcessor::matrixDefault(int l, int c)
-{
-    if (c < siren::kNumOsc) return c % 8 == l ? 0.7f : ((c * 3 + 1) % 8 == l ? -0.5f : 0.0f);
-    const int f = c - siren::kNumOsc;
-    return l == (f * 2 + 1) % 8 ? 0.8f : (l == (f * 2 + 4) % 8 ? -0.4f : 0.0f);
-}
-
 static String abc(int i) { return String::charToString("ABC"[i]); }
 static String noteName(int n) { static const char* nm[] = { "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B" }; return String(nm[n % 12]) + String(n / 12 - 2); }
 
@@ -27,26 +20,23 @@ AudioProcessorValueTreeState::ParameterLayout SirenProcessor::layout()
 
     flag("gate", "Drone", false);
     p.push_back(std::make_unique<AudioParameterInt>(ParameterID { "root", 1 }, "Root", 24, 84, 45, AudioParameterIntAttributes().withStringFromValueFunction([](int v, int) { return noteName(v); })));
-    knob("attack", "Attack", 0.05f, 120.0f, 12.0f, 0.35f, " s"); knob("release", "Release", 0.05f, 180.0f, 20.0f, 0.35f, " s");
+    knob("attack", "Attack", 0.05f, 120.0f, 12.0f, 0.35f, " s"); knob("release", "Release", 0.05f, 180.0f, 6.0f, 0.35f, " s");
     knob("stagger", "Stagger", 0, 1, 0.6f); knob("glide", "Glide", 0.01f, 10.0f, 0.5f, 0.4f, " s");
     knob("x", "Chord", 0, 1, 0.25f); knob("y", "Spread", 0, 1, 0.5f); knob("z", "Timbre", 0, 1, 0.4f); knob("index", "Index", 0, 1, 0.0f); knob("animate", "Animate", 0, 1, 0.3f);
-    knob("pitchDepth", "Pitch LFO", 0, 100, 25, 1.0f, " ct"); knob("filterDepth", "Filter LFO", 0, 4, 2, 1.0f, " oct");
     for (int b = 0; b < kNumBundles; ++b)
     {
-        const String s(b);
-        choice("type" + s, "Filter " + abc(b) + " Type", { "Lowpass", "Bandpass", "Highpass" }, 0);
-        knob("cut" + s, "Cutoff " + abc(b), 40, 18000, b == 0 ? 900.0f : b == 1 ? 2200.0f : 5000.0f, 0.3f, " Hz");
-        knob("res" + s, "Resonance " + abc(b), 0, 1, 0.2f); knob("lvl" + s, "Level " + abc(b), -24, 6, 0, 1.0f, " dB");
+        const String s(b), n = abc(b);
+        choice("type" + s, "Filter " + n + " Type", { "Lowpass", "Bandpass", "Highpass" }, 0);
+        knob("cut" + s, "Cutoff " + n, 40, 18000, b == 0 ? 900.0f : b == 1 ? 2200.0f : 5000.0f, 0.3f, " Hz");
+        knob("res" + s, "Resonance " + n, 0, 1, 0.2f); knob("lvl" + s, "Level " + n, -24, 6, 0, 1.0f, " dB");
+        knob("bdet" + s, "Detune " + n, 0, 50, 4, 0.6f, " ct");
+        knob("lr" + s, "LFO Rate " + n, 0.005f, 2.0f, 0.03f * (1.0f + 0.6f * (float) b), 0.3f, " Hz");
+        choice("ls" + s, "LFO Shape " + n, { "Sine", "Tri", "Ramp", "Rand" }, b == 1 ? 1 : 0);
+        knob("ld" + s, "LFO Depth " + n, 0, 1, 0.5f);
+        knob("lx" + s, "LFO Target X " + n, 0, 1, b == 1 ? 0.5f : 0.15f); knob("ly" + s, "LFO Target Y " + n, 0, 1, b == 1 ? 0.9f : 0.85f);
     }
-    for (int i = 0; i < kNumOsc; ++i) knob("det" + String(i), "Detune " + String(i + 1), -50, 50, 0, 1.0f, " ct");
-    for (int l = 0; l < kNumLfo; ++l)
-    {
-        knob("rate" + String(l), "LFO " + String(l + 1) + " Rate", 0.005f, 2.0f, 0.02f * std::pow(1.5f, (float) l), 0.3f, " Hz");
-        choice("shape" + String(l), "LFO " + String(l + 1) + " Shape", { "Sine", "Triangle", "Ramp", "Random" }, l % 2);
-        for (int c = 0; c < kMatrixCols; ++c) knob(matrixId(l, c), "LFO " + String(l + 1) + " > " + (c < kNumOsc ? "Osc " + String(c + 1) : "Filter " + abc(c - kNumOsc)), -1, 1, matrixDefault(l, c));
-    }
-    knob("rvMix", "Reverb Mix", 0, 1, 0.35f); knob("rvDecay", "Reverb Decay", 0.5f, 30, 8, 0.5f, " s"); knob("rvShimmer", "Shimmer", 0, 1, 0.4f); knob("rvTone", "Reverb Tone", 0, 1, 0.6f);
     knob("fmA", "FM B to A", 0, 1, 0); knob("fmB", "FM C to B", 0, 1, 0);
+    knob("rvMix", "Reverb Mix", 0, 1, 0.3f); knob("rvDecay", "Reverb Decay", 0.5f, 60, 8, 0.5f, " s"); knob("rvPre", "Pre-Delay", 0, 250, 20, 0.6f, " ms"); knob("rvTone", "Reverb Tone", -1, 1, 0);
     knob("level", "Level", -48, 6, -12, 1.0f, " dB"); knob("ceiling", "Limiter Ceiling", -12, 0, -1, 1.0f, " dB");
     return { p.begin(), p.end() };
 }
@@ -78,15 +68,15 @@ void SirenProcessor::processBlock(AudioBuffer<float>& buf, MidiBuffer& midi)
     const bool midiOn = !held.empty() || (sustain && lastNote >= 0);
     q.gate = midiOn || get("gate") > 0.5f;
     q.rootNote = (midiOn ? (float) lastNote : get("root")) + bend;
-    for (int i = 0; i < kNumOsc; ++i) q.detune[(size_t) i] = get("det" + String(i));
-    for (int l = 0; l < kNumLfo; ++l)
+    for (int b = 0; b < kNumBundles; ++b)
     {
-        q.lfoRate[(size_t) l] = get("rate" + String(l)); q.lfoShape[(size_t) l] = (int) get("shape" + String(l));
-        for (int c = 0; c < kMatrixCols; ++c) q.matrix[l][c] = get(matrixId(l, c));
+        const String s(b);
+        q.bundle[(size_t) b].type = (int) get("type" + s); q.bundle[(size_t) b].cutoff = get("cut" + s); q.bundle[(size_t) b].res = get("res" + s);
+        q.bundle[(size_t) b].levelDb = get("lvl" + s); q.bundle[(size_t) b].detuneCents = get("bdet" + s);
+        q.bundle[(size_t) b].lfo = { get("lr" + s), (int) get("ls" + s), get("ld" + s), get("lx" + s), get("ly" + s) };
     }
-    q.pitchDepthCents = get("pitchDepth"); q.filterDepthOct = get("filterDepth");
-    for (int b = 0; b < kNumBundles; ++b) { const String s(b); q.bundle[(size_t) b] = { (int) get("type" + s), get("cut" + s), get("res" + s), get("lvl" + s) }; }
-    q.levelDb = get("level"); q.rvMix = get("rvMix"); q.rvDecay = get("rvDecay"); q.rvShimmer = get("rvShimmer"); q.rvTone = get("rvTone"); q.ceilingDb = get("ceiling"); q.fmIntoA = get("fmA"); q.fmIntoB = get("fmB");
+    q.fmIntoA = get("fmA"); q.fmIntoB = get("fmB");
+    q.levelDb = get("level"); q.rvMix = get("rvMix"); q.rvDecay = get("rvDecay"); q.rvPreMs = get("rvPre"); q.rvTone = get("rvTone"); q.ceilingDb = get("ceiling");
 
     buf.clear();
     engine.process(q, buf.getWritePointer(0), buf.getWritePointer(1), buf.getNumSamples());

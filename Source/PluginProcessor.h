@@ -24,9 +24,6 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
-    static juce::String matrixId(int lfo, int col) { return "m" + juce::String(lfo) + "_" + juce::String(col); }
-    static float matrixDefault(int l, int c);
-
     juce::AudioProcessorValueTreeState apvts;
     std::array<std::atomic<float>, siren::kNumLfo> lfoOut {};
     std::atomic<float> envOut { 0 }, grDb { 0 };
