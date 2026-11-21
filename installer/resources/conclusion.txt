@@ -1,0 +1,12 @@
+Done!
+
+Restart your DAW and rescan plugins. Then search for "Siren"
+in your instrument list.
+Logic Pro: Instruments > Audio Units > Dani Koenig > Siren.
+
+---
+
+Fertig! Starte deine DAW neu und lass die Plugins neu scannen.
+Logic Pro: Instruments > Audio Units > Dani Koenig > Siren.
+
+https://github.com/danikoenig/Siren

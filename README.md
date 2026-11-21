@@ -16,5 +16,5 @@ Pitch LFO / Filter LFO set the maximum depth. Modulation grows with the swell.
 
 **Space**: shimmer reverb (octave-up feed-forward and feedback), then a look-ahead brickwall limiter (3 ms, adjustable ceiling).
 
-Build: `git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git libs/JUCE && cmake -B build && cmake --build build`
+Build: `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build` (JUCE 8.0.6 is downloaded automatically, or pass `-DJUCE_PATH=/path/to/JUCE`)
 Offline engine test: `g++ -O2 -std=c++17 tests/render_test.cpp -o tests/render_test && ./tests/render_test`

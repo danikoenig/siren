@@ -1,0 +1,22 @@
+#!/bin/bash
+# Siren Uninstaller: entfernt VST3, Audio Unit und Standalone-App, auch aus den Benutzer-Ordnern.
+# Projekte, Presets und Einstellungen bleiben erhalten.
+NAME="Siren"
+ID="ch.danikoenig.siren"
+
+for base in "/Library" /Users/*/Library; do
+  [ -d "$base" ] || continue
+  rm -rf "$base/Audio/Plug-Ins/VST3/$NAME.vst3"
+  rm -rf "$base/Audio/Plug-Ins/Components/$NAME.component"
+done
+rm -rf "/Applications/$NAME.app"
+for h in /Users/*; do
+  [ -d "$h/Applications/$NAME.app" ] && rm -rf "$h/Applications/$NAME.app"
+done
+
+pkgutil --forget "$ID.vst3" >/dev/null 2>&1
+pkgutil --forget "$ID.au" >/dev/null 2>&1
+
+# Audio-Unit-Cache neu einlesen lassen
+killall -9 AudioComponentRegistrar >/dev/null 2>&1
+exit 0

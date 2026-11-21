@@ -1,0 +1,343 @@
+DRIFT STATION - INSTALLATION (macOS)
+by Dani Koenig
+https://github.com/danikoenig/Siren/releases
+
+English below / Deutsch weiter unten
+
+================================================================
+ENGLISH
+================================================================
+
+REQUIREMENTS
+- A Mac with Apple Silicon (M1, M2, M3, M4 ...).
+  How to check: click the Apple logo (top left) > "About This Mac".
+  Next to "Chip" it must say "Apple M...". Intel Macs are not supported.
+- macOS 11 (Big Sur) or newer.
+- A DAW: any DAW with VST3 (Bitwig, Ableton Live, Cubase, Studio One,
+  Reaper ...) or with Audio Units (Logic Pro, GarageBand).
+  Siren comes in both formats.
+
+There are two ways to install. Way A is the easiest.
+
+
+----------------------------------------------------------------
+WAY A - INSTALLER (no Terminal needed)
+----------------------------------------------------------------
+
+1. Download "Siren-Installer.pkg".
+
+2. Double-click it.
+   macOS will show a message like "Siren-Installer.pkg Not Opened"
+   or "cannot be opened because Apple cannot check it".
+   This is normal: the plugin is free and not sold through Apple.
+   Click "Done" (or "OK"). Do NOT click "Move to Trash".
+
+3. Allow it once:
+   - Click the Apple logo (top left) > "System Settings".
+   - Click "Privacy & Security" in the left sidebar.
+   - Scroll down to the "Security" section. You'll see:
+     "Siren-Installer.pkg was blocked ..."
+   - Click "Open Anyway" and enter your Mac password.
+   - Click "Open" if macOS asks again.
+
+4. The installer opens. Click "Continue" and "Install", and enter your
+   Mac password when asked.
+
+5. Restart your DAW and rescan plugins (see "Open your DAW" below).
+
+Done. You only need step 3 once.
+
+
+----------------------------------------------------------------
+WAY B - TERMINAL (if Way A doesn't work)
+----------------------------------------------------------------
+
+STEP 1 - UNZIP
+1. Save the file "Siren-VST3-macOS-arm64.zip" to your
+   "Downloads" folder.
+2. Double-click the ZIP file. A folder appears in Downloads with
+   "Siren.vst3", "Siren.component" and this guide inside.
+   (Safari sometimes unzips automatically. Then the folder is already there.)
+   Leave everything in the Downloads folder.
+
+STEP 2 - OPEN TERMINAL
+Terminal is an app that is already on every Mac.
+1. Press Cmd + Space (opens Spotlight search).
+2. Type: Terminal
+3. Press Enter. A window with text opens. That is Terminal.
+
+STEP 3 - COPY THE COMMANDS INTO TERMINAL
+1. Select ALL four lines between the two dashed lines below
+   (from "mkdir" to the end of the "xattr" line).
+2. Copy them with Cmd + C.
+3. Click into the Terminal window.
+4. Paste with Cmd + V.
+5. Press Enter.
+
+------------------------- copy from here -------------------------
+mkdir -p ~/Library/Audio/Plug-Ins/VST3 ~/Library/Audio/Plug-Ins/Components
+cp -R "$(find ~/Downloads -maxdepth 3 -name "Siren.vst3" -print -quit)" ~/Library/Audio/Plug-Ins/VST3/
+cp -R "$(find ~/Downloads -maxdepth 3 -name "Siren.component" -print -quit)" ~/Library/Audio/Plug-Ins/Components/
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Siren.vst3" ~/Library/Audio/Plug-Ins/Components/"Siren.component"
+------------------------- copy up to here ------------------------
+
+What the commands do:
+- Line 1 makes sure the plugin folders exist.
+- Line 2 and 3 find "Siren.vst3" (VST3) and "Siren.component"
+  (Audio Unit for Logic/GarageBand) in your Downloads and copy them into
+  your plugin folders.
+- Line 4 removes the macOS "downloaded from the internet" block.
+  Without this, macOS will refuse to load the plugin, because it is
+  not sold through Apple.
+
+If macOS asks whether "Terminal" may access your "Downloads" folder,
+click "OK" / "Allow".
+
+If it worked, Terminal shows nothing and is just ready for the next
+input. That is normal. You can close Terminal now.
+
+
+----------------------------------------------------------------
+OPEN YOUR DAW
+----------------------------------------------------------------
+1. Quit your DAW completely and start it again.
+2. Let it rescan the plugins (most DAWs do this automatically).
+   - Bitwig: Settings > Locations > Plug-ins > Rescan
+   - Ableton Live: Settings > Plug-Ins > "Use VST3 Plug-In System
+     Folders" must be ON, then click "Rescan"
+   - Logic Pro: scans automatically on start. You find it under
+     Instruments > Audio Units > Dani Koenig > Siren
+3. Search for "Siren" in the instrument list and load it onto a
+   MIDI/instrument track. Play one note, or press START DRONE.
+
+Use only ONE of the two ways. If you installed with both, delete the copies in
+your user folder (~/Library/Audio/Plug-Ins/VST3 and ~/Library/Audio/Plug-Ins/
+Components), otherwise the plugin may show up twice.
+
+
+HOW TO USE (SHORT)
+- Play ONE note (or press START DRONE and set ROOT). The note is the root;
+  21 oscillators fade in over a very long ATTACK and fade out with RELEASE.
+  STAGGER: the root triad enters first, higher layers follow.
+- CHORD morphs through Just Intonation sets (octaves, power, minor triads,
+  inversions, min7/min9, sus2, dorian). SPREAD = octave spread,
+  TIMBRE = wavetable position, INDEX = wavetable, ANIMATE = auto detune,
+  stereo width and LFO speed.
+- BUNDLES A/B/C: 7 oscillators each (low / mid / high) with their own
+  filter (LP / BP / HP) and a manual detune slider per oscillator.
+- LFO MATRIX: 8 LFOs (rate + shape). Click and drag a cell to send an LFO
+  to the pitch of an oscillator (columns 1-21) or the cutoff of a filter
+  (FA, FB, FC). Double-click = 0. PITCH / FILTER DEPTH set the maximum.
+- SHIMMER REVERB: octave-up shimmer. A limiter at the end keeps it safe
+  (the bar shows gain reduction).
+- MIDI: note = root, sustain pedal and pitch bend work.
+
+
+TROUBLESHOOTING
+- No "Open Anyway" button in Privacy & Security (Way A):
+  Double-click the installer again first, then check System Settings
+  right away. The button only shows for about an hour after the attempt.
+
+- "No such file or directory" (Way B):
+  "Siren.vst3" is not in your Downloads folder (or the ZIP is not
+  unzipped yet). Unzip it there and paste the commands again.
+
+- The plugin does not show up in the DAW:
+  Restart the DAW and rescan. With Way B, run the 4 commands again.
+
+- Logic Pro does not show Siren:
+  Logic Pro > Settings > Plug-in Manager. Find "Siren", tick it
+  and click "Reset & Rescan Selection".
+
+- "Siren is damaged" or "cannot be opened" (Way B):
+  Line 4 was not run. Paste only this line into Terminal and press Enter:
+
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Siren.vst3" ~/Library/Audio/Plug-Ins/Components/"Siren.component"
+
+
+UNINSTALL
+Easiest: download Siren-Uninstaller.pkg from the release page, double-click it
+and follow the steps. It removes both ways of installing.
+
+By hand:
+Installed with Way A: open Finder, press Cmd + Shift + G, paste
+/Library/Audio/Plug-Ins/VST3 and press Enter. Move "Siren.vst3"
+to the Trash. Do the same for /Library/Audio/Plug-Ins/Components and
+"Siren.component".
+
+Installed with Way B: paste these lines into Terminal and press Enter:
+
+mv ~/Library/Audio/Plug-Ins/VST3/"Siren.vst3" ~/.Trash/
+mv ~/Library/Audio/Plug-Ins/Components/"Siren.component" ~/.Trash/
+
+
+================================================================
+DEUTSCH
+================================================================
+
+VORAUSSETZUNGEN
+- Ein Mac mit Apple Silicon (M1, M2, M3, M4 ...).
+  So prüfst du das: Klick oben links auf das Apple-Logo > "Über diesen Mac".
+  Bei "Chip" muss "Apple M..." stehen. Intel-Macs werden nicht unterstützt.
+- macOS 11 (Big Sur) oder neuer.
+- Eine DAW: jede DAW mit VST3 (Bitwig, Ableton Live, Cubase, Studio One,
+  Reaper ...) oder mit Audio Units (Logic Pro, GarageBand).
+  Siren gibt es in beiden Formaten.
+
+Es gibt zwei Wege. Weg A ist der einfachste.
+
+
+----------------------------------------------------------------
+WEG A - INSTALLER (ohne Terminal)
+----------------------------------------------------------------
+
+1. Lade "Siren-Installer.pkg" herunter.
+
+2. Doppelklick darauf.
+   macOS zeigt eine Meldung wie "Siren-Installer.pkg wurde nicht
+   geöffnet" oder "kann nicht geöffnet werden, da Apple es nicht prüfen kann".
+   Das ist normal: Das Plugin ist gratis und wird nicht über Apple vertrieben.
+   Klick auf "Fertig" (oder "OK"). NICHT auf "In den Papierkorb legen".
+
+3. Einmal erlauben:
+   - Klick oben links auf das Apple-Logo > "Systemeinstellungen".
+   - Klick links auf "Datenschutz & Sicherheit".
+   - Scroll runter zum Bereich "Sicherheit". Dort steht:
+     "Siren-Installer.pkg wurde blockiert ..."
+   - Klick auf "Dennoch öffnen" und gib dein Mac-Passwort ein.
+   - Falls macOS nochmals fragt: "Öffnen" klicken.
+
+4. Der Installer öffnet sich. Klick auf "Fortfahren" und "Installieren"
+   und gib dein Mac-Passwort ein, wenn danach gefragt wird.
+
+5. DAW neu starten und Plugins neu scannen (siehe "DAW öffnen" unten).
+
+Fertig. Schritt 3 brauchst du nur einmal.
+
+
+----------------------------------------------------------------
+WEG B - TERMINAL (falls Weg A nicht klappt)
+----------------------------------------------------------------
+
+SCHRITT 1 - ENTPACKEN
+1. Speichere die Datei "Siren-VST3-macOS-arm64.zip" in deinem
+   Ordner "Downloads".
+2. Doppelklick auf die ZIP-Datei. Im Downloads-Ordner erscheint ein
+   Ordner mit "Siren.vst3", "Siren.component" und dieser Anleitung.
+   (Safari entpackt manchmal automatisch. Dann ist der Ordner schon da.)
+   Lass alles im Downloads-Ordner liegen.
+
+SCHRITT 2 - TERMINAL ÖFFNEN
+Terminal ist ein Programm, das auf jedem Mac schon installiert ist.
+1. Drücke Cmd + Leertaste (öffnet die Spotlight-Suche).
+2. Tippe: Terminal
+3. Drücke Enter. Es öffnet sich ein Fenster mit Text. Das ist das Terminal.
+
+SCHRITT 3 - BEFEHLE INS TERMINAL KOPIEREN
+1. Markiere ALLE vier Zeilen zwischen den beiden gestrichelten Linien
+   unten (von "mkdir" bis zum Ende der Zeile mit "xattr").
+2. Kopiere sie mit Cmd + C.
+3. Klicke ins Terminal-Fenster.
+4. Füge sie mit Cmd + V ein.
+5. Drücke Enter.
+
+------------------------- ab hier kopieren -----------------------
+mkdir -p ~/Library/Audio/Plug-Ins/VST3 ~/Library/Audio/Plug-Ins/Components
+cp -R "$(find ~/Downloads -maxdepth 3 -name "Siren.vst3" -print -quit)" ~/Library/Audio/Plug-Ins/VST3/
+cp -R "$(find ~/Downloads -maxdepth 3 -name "Siren.component" -print -quit)" ~/Library/Audio/Plug-Ins/Components/
+xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Siren.vst3" ~/Library/Audio/Plug-Ins/Components/"Siren.component"
+------------------------- bis hier kopieren ----------------------
+
+Was die Befehle machen:
+- Zeile 1 stellt sicher, dass die Plugin-Ordner existieren.
+- Zeile 2 und 3 suchen "Siren.vst3" (VST3) und "Siren.component"
+  (Audio Unit für Logic/GarageBand) in deinen Downloads und kopieren sie
+  in deine Plugin-Ordner.
+- Zeile 4 entfernt die macOS-Sperre für Dateien aus dem Internet.
+  Ohne diesen Schritt lädt macOS das Plugin nicht, weil es nicht
+  über Apple vertrieben wird.
+
+Falls macOS fragt, ob "Terminal" auf den Ordner "Downloads" zugreifen
+darf, klick auf "OK" / "Erlauben".
+
+Wenn es geklappt hat, zeigt das Terminal nichts an und wartet einfach
+auf die nächste Eingabe. Das ist normal. Du kannst das Terminal jetzt
+schliessen.
+
+
+----------------------------------------------------------------
+DAW ÖFFNEN
+----------------------------------------------------------------
+1. Beende deine DAW komplett und starte sie neu.
+2. Lass die Plugins neu scannen (die meisten DAWs machen das automatisch).
+   - Bitwig: Settings > Locations > Plug-ins > Rescan
+   - Ableton Live: Einstellungen > Plug-Ins > "VST3-Plug-In-Systemordner
+     verwenden" muss AN sein, dann auf "Neu scannen" klicken
+   - Logic Pro: scannt beim Start automatisch. Du findest es unter
+     Instrumente > Audio Units > Dani Koenig > Siren
+3. Suche in der Instrumenten-Liste nach "Siren" und lade es auf eine
+   MIDI-/Instrumentenspur. Spiel eine Note oder drück START DRONE.
+
+Nimm nur EINEN der beiden Wege. Wenn du beide benutzt hast, lösche die Kopien
+in deinem Benutzerordner (~/Library/Audio/Plug-Ins/VST3 und ~/Library/Audio/
+Plug-Ins/Components), sonst erscheint das Plugin eventuell doppelt.
+
+
+KURZ ZUR BEDIENUNG
+- Spiel EINE Note (oder drück START DRONE und stell ROOT ein). Die Note
+  ist die Root; 21 Oszillatoren blenden über einen sehr langen ATTACK ein
+  und mit RELEASE wieder aus. STAGGER: zuerst setzt das Root-Triad ein,
+  höhere Lagen folgen.
+- CHORD morpht durch Just-Intonation-Akkorde (Oktaven, Quinte, Moll-Triaden,
+  Umkehrungen, Min7/Min9, Sus2, Dorisch). SPREAD = Oktav-Spreizung,
+  TIMBRE = Wavetable-Position, INDEX = Wavetable, ANIMATE = Auto-Detune,
+  Stereobreite und LFO-Tempo.
+- BUNDLES A/B/C: je 7 Oszillatoren (tief / mittel / hoch) mit eigenem
+  Filter (LP / BP / HP) und einem Detune-Slider pro Oszillator.
+- LFO-MATRIX: 8 LFOs (Rate + Form). Zelle anklicken und ziehen: schickt
+  einen LFO an die Tonhöhe eines Oszillators (Spalten 1-21) oder den
+  Cutoff eines Filters (FA, FB, FC). Doppelklick = 0. PITCH / FILTER DEPTH
+  setzen das Maximum.
+- SHIMMER-REVERB: Oktav-Shimmer. Am Ende sitzt ein Limiter (der Balken
+  zeigt die Gain Reduction).
+- MIDI: Note = Root, Sustain-Pedal und Pitch Bend funktionieren.
+
+
+PROBLEME
+- Kein Button "Dennoch öffnen" unter Datenschutz & Sicherheit (Weg A):
+  Zuerst nochmals Doppelklick auf den Installer, dann sofort in den
+  Systemeinstellungen nachschauen. Der Button erscheint nur etwa eine
+  Stunde lang nach dem Versuch.
+
+- "No such file or directory" (Weg B):
+  "Siren.vst3" liegt nicht im Downloads-Ordner (oder das ZIP ist
+  noch nicht entpackt). Entpacke es dort und füge die Befehle nochmals ein.
+
+- Das Plugin erscheint nicht in der DAW:
+  DAW neu starten und neu scannen. Bei Weg B die 4 Befehle nochmals ausführen.
+
+- Logic Pro zeigt Siren nicht an:
+  Logic Pro > Einstellungen > Plug-in-Manager. "Siren" suchen,
+  anhaken und auf "Zurücksetzen & Auswahl neu prüfen" klicken.
+
+- "Siren ist beschädigt" oder "kann nicht geöffnet werden" (Weg B):
+  Zeile 4 wurde nicht ausgeführt. Füge nur diese Zeile ins Terminal ein
+  und drück Enter:
+
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/"Siren.vst3" ~/Library/Audio/Plug-Ins/Components/"Siren.component"
+
+
+DEINSTALLIEREN
+Am einfachsten: Siren-Uninstaller.pkg von der Release-Seite laden, doppelklicken
+und den Schritten folgen. Es entfernt beide Installationswege.
+
+Von Hand:
+Mit Weg A installiert: Finder öffnen, Cmd + Shift + G drücken,
+/Library/Audio/Plug-Ins/VST3 einfügen und Enter drücken. "Siren.vst3"
+in den Papierkorb legen. Dasselbe für /Library/Audio/Plug-Ins/Components
+und "Siren.component".
+
+Mit Weg B installiert: Füge diese Zeilen ins Terminal ein und drück Enter:
+
+mv ~/Library/Audio/Plug-Ins/VST3/"Siren.vst3" ~/.Trash/
+mv ~/Library/Audio/Plug-Ins/Components/"Siren.component" ~/.Trash/

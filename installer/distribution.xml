@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-gui-script minSpecVersion="2">
+    <title>Siren</title>
+    <welcome file="welcome.txt" mime-type="text/plain"/>
+    <conclusion file="conclusion.txt" mime-type="text/plain"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64"/>
+    <domains enable_localSystem="true" enable_currentUserHome="false" enable_anywhere="false"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="11.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default">
+            <line choice="ch.danikoenig.siren.vst3"/>
+            <line choice="ch.danikoenig.siren.au"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="ch.danikoenig.siren.vst3" visible="false">
+        <pkg-ref id="ch.danikoenig.siren.vst3"/>
+    </choice>
+    <choice id="ch.danikoenig.siren.au" visible="false">
+        <pkg-ref id="ch.danikoenig.siren.au"/>
+    </choice>
+    <pkg-ref id="ch.danikoenig.siren.vst3" version="@VERSION@" onConclusion="none">SirenVST3.pkg</pkg-ref>
+    <pkg-ref id="ch.danikoenig.siren.au" version="@VERSION@" onConclusion="none">SirenAU.pkg</pkg-ref>
+</installer-gui-script>
