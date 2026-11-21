@@ -14,6 +14,8 @@ Spread = octave spread, Timbre = wavetable position, Index = wavetable, Animate 
 **LFO matrix**: 8 LFOs (rate, shape) x 24 targets (pitch of each oscillator, cutoff of each filter). Drag a cell for depth, double-click for 0.
 Pitch LFO / Filter LFO set the maximum depth. Modulation grows with the swell.
 
+**Cross modulation**: FM from bundle C into B and from B into A (phase modulation, one slider each).
+
 **Space**: shimmer reverb (octave-up feed-forward and feedback), then a look-ahead brickwall limiter (3 ms, adjustable ceiling).
 
 Build: `cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build` (JUCE 8.0.6 is downloaded automatically, or pass `-DJUCE_PATH=/path/to/JUCE`)

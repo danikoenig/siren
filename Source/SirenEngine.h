@@ -112,6 +112,7 @@ struct Params
     float levelDb = -12.0f;
     float rvMix = 0.35f, rvDecay = 8.0f, rvShimmer = 0.4f, rvTone = 0.6f;
     float ceilingDb = -1.0f;
+    float fmIntoA = 0.0f, fmIntoB = 0.0f;                                   // 0..1: bundle B -> A, bundle C -> B (phase modulation)
 };
 
 // ----------------------------------------------------------------- filters
@@ -282,13 +283,21 @@ public:
             for (int s = 0; s < len; ++s)
             {
                 float bl[kNumBundles] = {}, br[kNumBundles] = {};
-                for (int i = 0; i < kNumOsc; ++i)
+                float modSig = 0.0f;                                   // pre-filter output of the bundle above, mono
+                for (int b = kNumBundles - 1; b >= 0; --b)             // C first, then B (modulated by C), then A (modulated by B)
                 {
-                    incSm[i] += smoothCoef * (incTarget[i] - incSm[i]);
-                    phase[i] += incSm[i]; phase[i] -= std::floor(phase[i]);
-                    const float v = wt.lookup(tableIdx, frame, phase[i]);
-                    gainL[i] += gainCoef * (tgtL[i] - gainL[i]); gainR[i] += gainCoef * (tgtR[i] - gainR[i]);
-                    bl[i / kOscPerBundle] += v * gainL[i]; br[i / kOscPerBundle] += v * gainR[i];
+                    const float pm = fmAmt[b] * modSig;
+                    for (int k = 0; k < kOscPerBundle; ++k)
+                    {
+                        const int i = b * kOscPerBundle + k;
+                        incSm[i] += smoothCoef * (incTarget[i] - incSm[i]);
+                        phase[i] += incSm[i]; phase[i] -= std::floor(phase[i]);
+                        double ph = phase[i] + pm; ph -= std::floor(ph);
+                        const float v = wt.lookup(tableIdx, frame, ph);
+                        gainL[i] += gainCoef * (tgtL[i] - gainL[i]); gainR[i] += gainCoef * (tgtR[i] - gainR[i]);
+                        bl[b] += v * gainL[i]; br[b] += v * gainR[i];
+                    }
+                    modSig = 0.5f * (bl[b] + br[b]);
                 }
                 float l = 0, r = 0;
                 for (int b = 0; b < kNumBundles; ++b)
@@ -369,6 +378,7 @@ private:
             for (int c = 0; c < 2; ++c) filt[b][(size_t) c].set(fc, sr, p.bundle[(size_t) b].res);
             bundleGain[b] = std::pow(10.0f, p.bundle[(size_t) b].levelDb / 20.0f);
         }
+        fmAmt = { 3.0f * p.fmIntoA * p.fmIntoA, 3.0f * p.fmIntoB * p.fmIntoB, 0.0f };   // quadratic taper, up to 3 cycles of phase
         outGain = std::pow(10.0f, p.levelDb / 20.0f);
         smoothCoef = 1.0 - std::exp(-1.0 / (std::max(0.01f, p.glide) * sr));
         gainCoef = (float) (1.0 - std::exp(-1.0 / (0.02 * sr)));
@@ -379,7 +389,7 @@ private:
     std::array<double, kNumOsc> phase{}, incTarget{}, incSm{};
     std::array<double, kNumLfo> lfoPhase{}; std::array<float, kNumLfo> lfoVal{}, lfoPrev{}, lfoTgt{};
     std::array<float, kNumOsc> tgtL{}, tgtR{}, gainL{}, gainR{};
-    std::array<std::array<SVF, 2>, kNumBundles> filt{}; std::array<float, kNumBundles> bundleGain{};
+    std::array<std::array<SVF, 2>, kNumBundles> filt{}; std::array<float, kNumBundles> bundleGain{}, fmAmt{};
     int tableIdx = 0; float frame = 0, outGain = 1, env = 0; double smoothCoef = 0.001; float gainCoef = 0.01f; bool first = true; uint32_t rnd = 1;
 };
 } // namespace siren

@@ -112,6 +112,13 @@ public:
                 detAtt[(size_t) i] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, "det" + juce::String (i), sl);
             }
         }
+        for (int b = 0; b < 2; ++b)            // cross modulation: bundle B -> A, bundle C -> B
+        {
+            auto& f = fm[(size_t) b]; f.setSliderStyle (juce::Slider::LinearBar); f.setTextBoxStyle (juce::Slider::TextBoxLeft, true, 70, 14);
+            f.getProperties().set ("accent", bundleColour[b].withAlpha (0.55f).toString()); f.setColour (juce::Slider::textBoxTextColourId, text);
+            f.setColour (juce::Slider::textBoxOutlineColourId, juce::Colours::transparentBlack); f.setColour (juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);
+            addAndMakeVisible (f); fmAtt[(size_t) b] = std::make_unique<juce::AudioProcessorValueTreeState::SliderAttachment> (a, b == 0 ? "fmA" : "fmB", f);
+        }
         // LFOs
         for (int l = 0; l < kNumLfo; ++l)
         {
@@ -173,7 +180,8 @@ public:
         {
             const auto r = bundleCard[b]; card (r, juce::String ("BUNDLE ") + bundleName[b] + "  " + bundleRange[b], bundleColour[b]);
             g.setColour (textDim); g.setFont (juce::FontOptions (9.5f, juce::Font::bold));
-            g.drawText ("DETUNE  +-50 ct", r.getX() + 14, detuneY - 14, 150, 12, juce::Justification::centredLeft);
+            g.drawText ("DETUNE  +-50 ct", r.getX() + 14, detuneY - 14, 110, 12, juce::Justification::centredLeft);
+            if (b < 2) g.drawText (b == 0 ? "FM FROM B" : "FM FROM C", r.getRight() - 12 - 72 - 66, detuneY - 14, 62, 12, juce::Justification::centredRight);
             for (int k = 0; k < kOscPerBundle; ++k)
                 g.drawText (juce::String (b * kOscPerBundle + k + 1), detuneX0 + b * 0 + r.getX() - bundleCard[0].getX() + k * detuneStep - 4, detuneY + detuneH + 1, detuneStep, 11, juce::Justification::centredLeft);
         }
@@ -232,6 +240,7 @@ public:
             type[(size_t) b]->setBounds (c.getRight() - 96, bundleCard[b].getY() + 6, 96, 20);
             auto kr = c.withTrimmedTop (30).withHeight (86);
             Knob::layoutRow (kr, { &kCut[(size_t) b], &kRes[(size_t) b], &kLvl[(size_t) b] }, 15);
+            if (b < 2) fm[(size_t) b].setBounds (c.getRight() - 72, bundleCard[b].getY() + 142 - 15, 72, 14);
             detuneY = bundleCard[b].getY() + 142; detuneH = 48; detuneStep = (c.getWidth()) / kOscPerBundle; detuneX0 = bundleCard[0].getX() + 12;
             for (int k = 0; k < kOscPerBundle; ++k)
                 det[(size_t) (b * kOscPerBundle + k)].setBounds (c.getX() + k * detuneStep, detuneY, detuneStep - 6, detuneH);
@@ -269,6 +278,7 @@ private:
     std::array<juce::Slider, kNumOsc> det; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, kNumOsc> detAtt;
     std::array<juce::Slider, kNumLfo> rate; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, kNumLfo> rateAtt;
     std::array<juce::ComboBox, kNumLfo> shape; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment>, kNumLfo> shapeAtt;
+    std::array<juce::Slider, 2> fm; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, 2> fmAtt;
     juce::Slider pitchDepth, filterDepth; std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> pdAtt, fdAtt;
     juce::ToggleButton drone { "START DRONE" }; std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> droneAtt;
     MatrixComponent matrix; LevelBar swellBar, grBar;

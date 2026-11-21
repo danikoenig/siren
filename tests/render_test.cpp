@@ -38,6 +38,9 @@ int main()
     Params q = init(); q.levelDb = 12; q.rvShimmer = 1; q.rvDecay = 30; q.rvMix = 1; q.y = 1; q.index = 1; q.bundle[0].res = 1;
     for (int k = 0; k < 300; ++k) e.process(q, &L[0], &R[0], 4800);
     float pk = 0; for (int i = 0; i < 4800; ++i) { if (!std::isfinite(L[i])) bad = true; pk = std::max(pk, std::abs(L[i])); }
+    { Engine e2; e2.prepare(sr); Engine e3; e3.prepare(sr); Params a = init(), b = init(); a.attack = b.attack = 0.1f; a.stagger = b.stagger = 0; b.fmIntoA = 0.6f; b.fmIntoB = 0.8f; std::vector<float> A(48000), B(48000), R2(48000); double d = 0, en = 0; bool ok = true;
+      for (int k = 0; k < 120; ++k) { e2.process(a, &A[0], &R2[0], 1200); e3.process(b, &B[0], &R2[0], 1200); if (k > 100) for (int i = 0; i < 1200; ++i) { d += (A[i] - B[i]) * (A[i] - B[i]); en += A[i] * A[i]; if (!std::isfinite(B[i])) ok = false; } }
+      printf("FM: finite %d, relative difference %.3f\n", ok, d / std::max(en, 1e-9)); }
     printf("extreme: peak %.3f finite %s\n", pk, bad ? "NO" : "yes");
     return bad || peak > 0.9f;
 }

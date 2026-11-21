@@ -46,6 +46,7 @@ AudioProcessorValueTreeState::ParameterLayout SirenProcessor::layout()
         for (int c = 0; c < kMatrixCols; ++c) knob(matrixId(l, c), "LFO " + String(l + 1) + " > " + (c < kNumOsc ? "Osc " + String(c + 1) : "Filter " + abc(c - kNumOsc)), -1, 1, matrixDefault(l, c));
     }
     knob("rvMix", "Reverb Mix", 0, 1, 0.35f); knob("rvDecay", "Reverb Decay", 0.5f, 30, 8, 0.5f, " s"); knob("rvShimmer", "Shimmer", 0, 1, 0.4f); knob("rvTone", "Reverb Tone", 0, 1, 0.6f);
+    knob("fmA", "FM B to A", 0, 1, 0); knob("fmB", "FM C to B", 0, 1, 0);
     knob("level", "Level", -48, 6, -12, 1.0f, " dB"); knob("ceiling", "Limiter Ceiling", -12, 0, -1, 1.0f, " dB");
     return { p.begin(), p.end() };
 }
@@ -85,7 +86,7 @@ void SirenProcessor::processBlock(AudioBuffer<float>& buf, MidiBuffer& midi)
     }
     q.pitchDepthCents = get("pitchDepth"); q.filterDepthOct = get("filterDepth");
     for (int b = 0; b < kNumBundles; ++b) { const String s(b); q.bundle[(size_t) b] = { (int) get("type" + s), get("cut" + s), get("res" + s), get("lvl" + s) }; }
-    q.levelDb = get("level"); q.rvMix = get("rvMix"); q.rvDecay = get("rvDecay"); q.rvShimmer = get("rvShimmer"); q.rvTone = get("rvTone"); q.ceilingDb = get("ceiling");
+    q.levelDb = get("level"); q.rvMix = get("rvMix"); q.rvDecay = get("rvDecay"); q.rvShimmer = get("rvShimmer"); q.rvTone = get("rvTone"); q.ceilingDb = get("ceiling"); q.fmIntoA = get("fmA"); q.fmIntoB = get("fmB");
 
     buf.clear();
     engine.process(q, buf.getWritePointer(0), buf.getWritePointer(1), buf.getNumSamples());
