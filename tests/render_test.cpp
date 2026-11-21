@@ -1,7 +1,5 @@
 #include "../Source/SirenEngine.h"
 #include <cstdio>
-#include <vector>
-#include <cstring>
 using namespace siren;
 static void wav(const char* f, const std::vector<float>& L, const std::vector<float>& R, int sr)
 {
@@ -13,23 +11,33 @@ static void wav(const char* f, const std::vector<float>& L, const std::vector<fl
     for (size_t i = 0; i < L.size(); ++i) { int16_t a = (int16_t) (L[i] * 32000), b = (int16_t) (R[i] * 32000); fwrite(&a, 2, 1, o); fwrite(&b, 2, 1, o); }
     fclose(o);
 }
+static Params init()
+{
+    Params p; p.x = 0.25f; p.attack = 10; p.release = 8; p.gate = true; p.rootNote = 45; // A2
+    for (int l = 0; l < kNumLfo; ++l) { p.lfoRate[(size_t) l] = 0.02f * std::pow(1.5f, (float) l); p.lfoShape[(size_t) l] = l % 2; }
+    for (int c = 0; c < kNumOsc; ++c) { p.matrix[c % 8][c] = 0.7f; p.matrix[(c * 3 + 1) % 8][c] = -0.5f; }
+    for (int f = 0; f < 3; ++f) p.matrix[(f * 2 + 1) % 8][kNumOsc + f] = 0.8f;
+    return p;
+}
 int main()
 {
-    const int sr = 48000, N = sr * 8; Engine e; e.prepare(sr);
-    std::vector<float> L(N), R(N); Params p; p.animate = 0.3f; p.yAtt = 0.3f; p.zAtt = 0.3f;
+    const int sr = 48000, secs = 40, N = sr * secs; Engine e; e.prepare(sr);
+    std::vector<float> L(N), R(N); Params p = init();
+    bool bad = false; float peak = 0; std::vector<float> rmsAt;
     for (int b = 0; b < N; b += 4800)
-    {   // sweep X over 8 s
-        p.x = b / float(N);
-        e.process(p, nullptr, &L[b], &R[b], 4800);
+    {
+        if (b >= sr * 20) p.gate = false;               // 20 s held, then release into reverb tail
+        e.process(p, &L[b], &R[b], 4800);
+        float r = 0; for (int i = b; i < b + 4800; ++i) { if (!std::isfinite(L[i]) || !std::isfinite(R[i])) bad = true; peak = std::max(peak, std::max(std::abs(L[i]), std::abs(R[i]))); r += L[i] * L[i]; }
+        if ((b / 4800) % 50 == 0) rmsAt.push_back(std::sqrt(r / 4800));
     }
-    float peak = 0, rms = 0; bool bad = false;
-    for (int i = 0; i < N; ++i) { if (!std::isfinite(L[i]) || !std::isfinite(R[i])) bad = true; peak = std::max(peak, std::abs(L[i])); rms += L[i] * L[i]; }
-    printf("peak %.3f rms %.4f nan/inf %d lfo1 %.2f lfo2 %.2f\n", peak, std::sqrt(rms / N), bad, e.getLfo1(), e.getLfo2());
-    wav("siren_test.wav", L, R, sr);
-    // heavy aliasing / extreme settings stay finite
-    Params q; q.voct1 = 5; q.voct2 = 5; q.pitch = 1; q.y = 1; q.index = 1; q.idxLfo = 1; q.nearest = true;
-    for (int k = 0; k < 100; ++k) e.process(q, nullptr, &L[0], &R[0], 4800);
-    for (int i = 0; i < 4800; ++i) if (!std::isfinite(L[i])) bad = true;
-    printf("extreme finite: %s\n", bad ? "NO" : "yes");
-    return bad;
+    printf("peak %.3f (ceiling -1 dB = 0.891)  nan %d\nrms every 5s:", peak, bad);
+    for (float v : rmsAt) printf(" %.3f", v);
+    printf("\n");
+    wav("siren_drone.wav", L, R, sr);
+    Params q = init(); q.levelDb = 12; q.rvShimmer = 1; q.rvDecay = 30; q.rvMix = 1; q.y = 1; q.index = 1; q.bundle[0].res = 1;
+    for (int k = 0; k < 300; ++k) e.process(q, &L[0], &R[0], 4800);
+    float pk = 0; for (int i = 0; i < 4800; ++i) { if (!std::isfinite(L[i])) bad = true; pk = std::max(pk, std::abs(L[i])); }
+    printf("extreme: peak %.3f finite %s\n", pk, bad ? "NO" : "yes");
+    return bad || peak > 0.9f;
 }

@@ -15,7 +15,7 @@ public:
     const juce::String getName() const override { return "Siren"; }
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
-    double getTailLengthSeconds() const override { return 0; }
+    double getTailLengthSeconds() const override { return 60.0; }
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
     void setCurrentProgram(int) override {}
@@ -24,12 +24,16 @@ public:
     void getStateInformation(juce::MemoryBlock&) override;
     void setStateInformation(const void*, int) override;
 
+    static juce::String matrixId(int lfo, int col) { return "m" + juce::String(lfo) + "_" + juce::String(col); }
+    static float matrixDefault(int l, int c);
+
     juce::AudioProcessorValueTreeState apvts;
-    std::atomic<float> lfo1 { 0 }, lfo2 { 0 };
+    std::array<std::atomic<float>, siren::kNumLfo> lfoOut {};
+    std::atomic<float> envOut { 0 }, grDb { 0 };
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout layout();
-    float get(const char* id) const { return apvts.getRawParameterValue(id)->load(); }
+    float get(const juce::String& id) const { return apvts.getRawParameterValue(id)->load(); }
     siren::Engine engine;
-    float noteVolts = 0, bendVolts = 0, modWheel = 0; int heldNote = -1; bool lastReset = false;
+    std::vector<int> held; int lastNote = -1; bool sustain = false; float bend = 0;
 };

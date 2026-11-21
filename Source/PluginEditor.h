@@ -1,21 +1,34 @@
 #pragma once
 #include "PluginProcessor.h"
 
+// 8 LFO rows x 24 columns (21 oscillator pitches + 3 filter cutoffs). Drag a cell up/down to set depth, double-click = 0.
+class MatrixComponent : public juce::Component
+{
+public:
+    explicit MatrixComponent(juce::AudioProcessorValueTreeState& a) : apvts(a) {}
+    void paint(juce::Graphics&) override;
+    void mouseDown(const juce::MouseEvent&) override;
+    void mouseDrag(const juce::MouseEvent&) override;
+    void mouseUp(const juce::MouseEvent&) override;
+    void mouseDoubleClick(const juce::MouseEvent&) override;
+    void mouseWheelMove(const juce::MouseEvent&, const juce::MouseWheelDetails&) override;
+    static constexpr int gapAfter = siren::kNumOsc;      // small gap before the 3 filter columns
+    juce::Rectangle<float> cellRect(int l, int c) const;
+private:
+    bool hit(juce::Point<int> p, int& l, int& c) const;
+    juce::RangedAudioParameter* param(int l, int c) const { return apvts.getParameter(SirenProcessor::matrixId(l, c)); }
+    juce::AudioProcessorValueTreeState& apvts;
+    int dl = -1, dc = -1; float startValue = 0;
+};
+
 class SirenEditor : public juce::AudioProcessorEditor, private juce::Timer
 {
 public:
     explicit SirenEditor(SirenProcessor&);
-    void paint(juce::Graphics&) override;
     void resized() override;
 private:
+    class Content;
     void timerCallback() override;
-    struct Knob { juce::Slider s; juce::Label l; std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> a; };
-    void addKnob(Knob& k, const char* id, const char* text, bool big);
     SirenProcessor& proc;
-    Knob x, y, z, pitch, index, animate, xAtt, yAtt, zAtt, lfoSpeed, voct2, pmod, idxLfo, level;
-    juce::ToggleButton nearest { "Nearest" }, lock { "Lock" }, midiReset { "Note resets phase" };
-    juce::TextButton reset { "Reset" };
-    std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> aN, aL, aM;
-    std::array<std::array<float, 120>, 2> hist{}; int hp = 0;
-    juce::Rectangle<int> scope1, scope2;
+    std::unique_ptr<Content> content;
 };
