@@ -55,6 +55,8 @@ jobs:
           cp -R "$ART/AU/Siren.component" "pkg/Siren/"
           cp -R "$ART/CLAP/Siren.clap" "pkg/Siren/"
           cp INSTALL.txt "pkg/Siren/INSTALL.txt"
+          cp docs/Siren-Manual-EN.pdf docs/Siren-Manual-DE.pdf "pkg/Siren/"
+          cp docs/Siren-Manual-EN.pdf docs/Siren-Manual-DE.pdf dist/
           ditto -c -k --keepParent "pkg/Siren" "dist/Siren-VST3-macOS-arm64.zip"
           ditto -c -k --keepParent "$ART/Standalone/Siren.app" "dist/Siren-Standalone-macOS-arm64.zip"
 
@@ -111,6 +113,7 @@ jobs:
           path: |
             dist/*.zip
             dist/*.pkg
+            dist/*.pdf
 
       - name: Release (bei Tag v* oder Commit mit [release])
         if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))
@@ -124,6 +127,7 @@ jobs:
           files: |
             dist/*.zip
             dist/*.pkg
+            dist/*.pdf
 
       - name: Remove older releases (only the newest stays)
         if: startsWith(github.ref, 'refs/tags/v') || (github.ref == 'refs/heads/main' && contains(github.event.head_commit.message, '[release]'))

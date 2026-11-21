@@ -1,3 +1,7 @@
+### New in v1.2.3
+- **Manuals**: new PDF manuals in English and German, attached to this release (also linked on the download page)
+- Manual covers quick start, every control, recipes and install
+
 ## Siren v1.2.2
 
 - **CLAP format** (Bitwig, Reaper ...) in addition to VST3 and Audio Unit. The installer puts it in /Library/Audio/Plug-Ins/CLAP.
