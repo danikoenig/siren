@@ -79,9 +79,10 @@ public:
         kIndex.setup (*this, a, "index", "Index", accent); kAnimate.setup (*this, a, "animate", "Animate", accent);
         // Reverb + out
         kMix.setup (*this, a, "rvMix", "Mix", reverbCol, true); kDecay.setup (*this, a, "rvDecay", "Decay", reverbCol, true);
-        kPre.setup (*this, a, "rvPre", "Pre", reverbCol, true); kTone.setup (*this, a, "rvTone", "Tone", reverbCol, true);
+        kTone.setup (*this, a, "rvTone", "Tone", reverbCol, true);
         kTone.slider.getProperties().set ("bipolar", true);
-        kLevel.setup (*this, a, "level", "Level", accent2, true); kCeiling.setup (*this, a, "ceiling", "Ceiling", accent2, true);
+        kWidth.setup (*this, a, "width", "Width", accent, true); kMove.setup (*this, a, "move", "Move", accent, true);
+        kLimit.setup (*this, a, "limit", "Limiter", accent2, true); kLevel.setup (*this, a, "level", "Level", accent2, true);
         for (int b = 0; b < kNumBundles; ++b)
         {
             const juce::String s (b); const auto col = bundle (b);
@@ -143,10 +144,14 @@ public:
             g.drawText (title, r.getX() + 26, r.getY() + 8, 200, 14, juce::Justification::centredLeft);
         };
         card (droneCard, "DRONE", env); card (timbreCard, "TIMBRE", accent); card (spaceCard, "REVERB", reverbCol);
-        g.setColour (cardBorder); g.drawVerticalLine (outDivider, (float) spaceCard.getY() + 28.0f, (float) spaceCard.getBottom() - 12.0f);
-        g.setColour (accent2); g.fillEllipse ((float) outDivider + 10.0f, (float) spaceCard.getY() + 11.0f, 7.0f, 7.0f);
-        g.setColour (text.withAlpha (0.85f)); g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
-        g.drawText ("OUT", outDivider + 23, spaceCard.getY() + 8, 60, 14, juce::Justification::centredLeft);
+        auto sub = [&] (int x, const juce::String& t, juce::Colour c)
+        {
+            g.setColour (cardBorder); g.drawVerticalLine (x, (float) spaceCard.getY() + 28.0f, (float) spaceCard.getBottom() - 12.0f);
+            g.setColour (c); g.fillEllipse ((float) x + 8.0f, (float) spaceCard.getY() + 11.0f, 7.0f, 7.0f);
+            g.setColour (text.withAlpha (0.85f)); g.setFont (juce::FontOptions (11.0f, juce::Font::bold));
+            g.drawText (t, x + 20, spaceCard.getY() + 8, 60, 14, juce::Justification::centredLeft);
+        };
+        sub (stereoDivider, "STEREO", accent); sub (outDivider, "OUT", accent2);
 
         // chord name
         const int ci = juce::jlimit (0, (int) chords().size() - 1, juce::roundToInt (proc.apvts.getRawParameterValue ("x")->load() * (float) (chords().size() - 1)));
@@ -194,9 +199,12 @@ public:
         Knob::layoutRow (droneCard.reduced (8, 0).withTrimmedTop (26).withTrimmedBottom (6), { &kRoot, &kAttack, &kRelease, &kStagger, &kGlide });
         Knob::layoutRow (timbreCard.reduced (8, 0).withTrimmedTop (26).withTrimmedBottom (6), { &kChord, &kSpread, &kTimbre, &kIndex, &kAnimate });
         auto sp = spaceCard.reduced (6, 0).withTrimmedTop (26).withTrimmedBottom (6);
-        auto spReverb = sp.removeFromLeft (sp.getWidth() * 62 / 100); outDivider = spReverb.getRight() + 2;
-        Knob::layoutRow (spReverb, { &kMix, &kDecay, &kPre, &kTone }, 15);
-        Knob::layoutRow (sp.withTrimmedLeft (4), { &kLevel, &kCeiling }, 15);
+        const int unit = sp.getWidth() / 7;
+        auto spReverb = sp.removeFromLeft (unit * 3); stereoDivider = spReverb.getRight() + 1;
+        auto spStereo = sp.removeFromLeft (unit * 2); outDivider = spStereo.getRight() + 1;
+        Knob::layoutRow (spReverb, { &kMix, &kDecay, &kTone }, 15);
+        Knob::layoutRow (spStereo.withTrimmedLeft (3), { &kWidth, &kMove }, 15);
+        Knob::layoutRow (sp.withTrimmedLeft (3), { &kLimit, &kLevel }, 15);
 
         area.removeFromTop (gap);
         auto row2 = area.removeFromTop (262);
@@ -222,15 +230,15 @@ private:
         swellBar.set (proc.envOut.load());
         const float gr = juce::jlimit (0.0f, 1.0f, -proc.grDb.load() / 12.0f);
         grBar.set (gr);
-        const float old = (float) kCeiling.slider.getProperties().getWithDefault ("grLight", 0.0);
-        if (std::abs (gr - old) > 0.005f) { kCeiling.slider.getProperties().set ("grLight", gr); kCeiling.slider.repaint(); }
+        const float old = (float) kLimit.slider.getProperties().getWithDefault ("grLight", 0.0);
+        if (std::abs (gr - old) > 0.005f) { kLimit.slider.getProperties().set ("grLight", gr); kLimit.slider.repaint(); }
         repaint();
     }
 
     static constexpr int fmY = 124, lfoY = 150, padSize = 112;
     SirenProcessor& proc;
     SirenLookAndFeel look;
-    Knob kRoot, kAttack, kRelease, kStagger, kGlide, kChord, kSpread, kTimbre, kIndex, kAnimate, kMix, kDecay, kPre, kTone, kLevel, kCeiling;
+    Knob kRoot, kAttack, kRelease, kStagger, kGlide, kChord, kSpread, kTimbre, kIndex, kAnimate, kMix, kDecay, kTone, kWidth, kMove, kLimit, kLevel;
     std::array<Knob, kNumBundles> kCut, kRes, kLvl, kDet;
     std::array<std::unique_ptr<SegmentSwitch>, kNumBundles> type;
     std::array<juce::Slider, kNumBundles> rate, depth; std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment>, kNumBundles> rateAtt, depthAtt;
@@ -240,7 +248,7 @@ private:
     juce::ToggleButton drone { "START DRONE" }; std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment> droneAtt;
     LevelBar swellBar, grBar;
     juce::Rectangle<int> droneCard, timbreCard, spaceCard; std::array<juce::Rectangle<int>, kNumBundles> bundleCard;
-    int outDivider = 0;
+    int outDivider = 0, stereoDivider = 0;
 };
 
 //==============================================================================

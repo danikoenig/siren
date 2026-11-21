@@ -130,8 +130,10 @@ HOW TO USE (SHORT)
   corners = cutoff (top left), reso (top right), level (bottom left),
   pitch (bottom right). Dot in the middle = a bit of everything.
 - REVERB: normal reverb with long decay (up to 60 s), pre-delay and TONE
-  (left = low-pass, right = high-pass). A limiter at the end keeps it safe
-  (the bar shows gain reduction).
+  (left = low-pass, right = high-pass).
+- STEREO: WIDTH widens the drone, MOVE adds a slow left/right drift.
+- OUT: LIMITER = threshold with auto gain (turn it down and the drone gets
+  denser and louder, the ring shows gain reduction). LEVEL = master volume.
 - MIDI: note = root, sustain pedal and pitch bend work.
 
 
@@ -301,8 +303,11 @@ KURZ ZUR BEDIENUNG
   Ecken = Cutoff (oben links), Reso (oben rechts), Level (unten links),
   Pitch (unten rechts). Punkt in der Mitte = von allem etwas.
 - REVERB: normales Reverb mit langem Decay (bis 60 s), Pre-Delay und TONE
-  (links = Tiefpass, rechts = Hochpass). Am Ende sitzt ein Limiter (der
-  Balken zeigt die Gain Reduction).
+  (links = Tiefpass, rechts = Hochpass).
+- STEREO: WIDTH verbreitert die Drohne, MOVE macht eine langsame
+  Links/Rechts-Bewegung.
+- OUT: LIMITER = Threshold mit Auto-Gain (runterdrehen = dichter und lauter,
+  der Ring zeigt die Gain Reduction). LEVEL = Gesamtlautstärke.
 - MIDI: Note = Root, Sustain-Pedal und Pitch Bend funktionieren.
 
 

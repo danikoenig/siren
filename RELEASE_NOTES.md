@@ -1,4 +1,4 @@
-## Siren v1.1.0
+## Siren v1.2.0
 
 Drone generator after the Eurorack module Siren (VST3 / Audio Unit, Apple Silicon).
 
@@ -9,3 +9,6 @@ Drone generator after the Eurorack module Siren (VST3 / Audio Unit, Apple Silico
 - Reverb with long decay, pre-delay and filter-style tone, plus a limiter at the end
 
 **Install:** download `Siren-Installer.pkg` and follow `INSTALL.txt` (Apple Silicon, macOS 11+).
+- Stereo: Width (widening) and Move (slow L/R drift)
+- Out: Limiter threshold with auto gain (like Drift Station) and Level
+- New init sound

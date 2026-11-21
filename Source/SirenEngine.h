@@ -116,7 +116,8 @@ struct Params
     float fmIntoA = 0.0f, fmIntoB = 0.0f;                                   // 0..1: bundle B -> A, bundle C -> B (phase modulation)
     float levelDb = -12.0f;
     float rvMix = 0.3f, rvDecay = 8.0f, rvPreMs = 20.0f, rvTone = 0.0f;     // tone: -1 lowpass .. +1 highpass
-    float ceilingDb = -1.0f;
+    float limitDb = 0.0f;                           // limiter threshold 0..-24 dB, auto gain (like Drift Station)
+    float width = 0.35f, move = 0.25f;              // stereo widening, slow L/R drift
 };
 
 // ----------------------------------------------------------------- filters
@@ -210,6 +211,14 @@ private:
     std::vector<float> pre; int preW = 0, preSamples = 0, toneType = 0; float mix = 0, decay = 8, toneAmt = 0; SVF toneL, toneR;
 };
 
+// ------------------------------------------------------------------ widener helper
+struct AllpassDelay
+{
+    std::vector<float> buf; int pos = 0;
+    void prepare(int n) { buf.assign((size_t) std::max(1, n), 0.0f); pos = 0; }
+    float process(float x) { const float d = buf[(size_t) pos]; const float y = -0.5f * x + d; buf[(size_t) pos] = x + 0.5f * y; if (++pos >= (int) buf.size()) pos = 0; return y; }
+};
+
 // ------------------------------------------------------------------ limiter
 class Limiter
 {
@@ -248,7 +257,7 @@ class Engine
 public:
     void prepare(double sampleRate)
     {
-        sr = sampleRate; reverb.prepare(sr); limiter.prepare(sr);
+        sr = sampleRate; reverb.prepare(sr); limiter.prepare(sr); ap1.prepare((int) (0.0023 * sr)); ap2.prepare((int) (0.0071 * sr)); movePhase = 0.0; limPre = 1.0f;
         for (int i = 0; i < kNumOsc; ++i) { phase[i] = hash01(i, 1.0); incSm[i] = 0; gainL[i] = gainR[i] = 0; }
         for (int l = 0; l < kNumLfo; ++l) { lfoPhase[l] = hash01(l, 7.0); lfoPrev[l] = 0; lfoTgt[l] = (float) (hash01(l, 2.0) * 2 - 1); lfoVal[l] = 0; }
         for (auto& f : filt) for (auto& s : f) s = SVF();
@@ -294,7 +303,20 @@ public:
                 }
                 l *= outGain; r *= outGain;
                 reverb.process(l, r, l, r);
-                limiter.process(l, r, p.ceilingDb);
+                {   // widening: boost side + decorrelated mid
+                    const float m = 0.5f * (l + r), sd = 0.5f * (l - r);
+                    const float dec = ap2.process(ap1.process(m));
+                    const float s2 = sd * (1.0f + p.width) + dec * 0.6f * p.width;
+                    l = m + s2; r = m - s2;
+                    // slow L/R drift (equal power)
+                    movePhase += 0.08 / sr; movePhase -= std::floor(movePhase);
+                    const float ang = p.move * 0.35f * (float) std::sin(6.283185307179586 * movePhase);
+                    l *= 1.41421356f * std::cos(0.78539816f + ang); r *= 1.41421356f * std::sin(0.78539816f + ang);
+                    // limiter threshold with auto gain, ceiling fixed at -1 dBFS
+                    limPre += (std::pow(10.0f, -p.limitDb / 20.0f) - limPre) * 0.002f;
+                    l *= limPre; r *= limPre;
+                }
+                limiter.process(l, r, -1.0f);
                 L[pos + s] = l; R[pos + s] = r;
             }
             pos += len;
@@ -386,7 +408,7 @@ private:
     }
 
     static constexpr float kOutputTrim = 0.5f;
-    Wavetables wt; Reverb reverb; Limiter limiter;
+    Wavetables wt; Reverb reverb; Limiter limiter; AllpassDelay ap1, ap2; double movePhase = 0.0; float limPre = 1.0f;
     double sr = 48000.0;
     std::array<double, kNumOsc> phase{}, incTarget{}, incSm{};
     std::array<double, kNumLfo> lfoPhase{}; std::array<float, kNumLfo> lfoVal{}, lfoPrev{}, lfoTgt{};
