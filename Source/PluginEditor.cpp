@@ -256,9 +256,10 @@ SirenEditor::SirenEditor (SirenProcessor& p) : AudioProcessorEditor (&p), panel 
 {
     addAndMakeVisible (*panel);
     setResizable (true, true);
-    setResizeLimits ((int) (W * 0.7), (int) (H * 0.7), W * 2, H * 2);
+    constexpr int openW = 1180, openH = (int) (openW * (double) H / (double) W + 0.5);   // same opening width as Quad Shooter
+    setResizeLimits ((int) (openW * 0.7), (int) (openH * 0.7), openW * 2, openH * 2);
     getConstrainer()->setFixedAspectRatio ((double) W / (double) H);
-    setSize (W, H);   // always opens at 100 %, like the other plugins
+    setSize (openW, openH);   // always opens at this size, like the other plugins
 }
 void SirenEditor::paint (juce::Graphics& g) { g.fillAll (SirenColours::bgBottom); }
 void SirenEditor::resized()

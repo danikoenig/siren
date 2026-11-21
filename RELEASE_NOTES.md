@@ -1,4 +1,4 @@
-## Siren v1.2.0
+## Siren v1.2.1
 
 Drone generator after the Eurorack module Siren (VST3 / Audio Unit, Apple Silicon).
 
@@ -12,3 +12,4 @@ Drone generator after the Eurorack module Siren (VST3 / Audio Unit, Apple Silico
 - Stereo: Width (widening) and Move (slow L/R drift)
 - Out: Limiter threshold with auto gain (like Drift Station) and Level
 - New init sound
+- Window opens larger (1180 px wide, same width as Quad Shooter)
