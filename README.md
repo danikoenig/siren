@@ -1,6 +1,8 @@
 # Siren
 
-VST3 / AU drone instrument after the Eurorack module *Siren*. Play one note (or press START DRONE): the note is the root,
+**Manual (PDF):** [English](https://github.com/danikoenig/siren/releases/latest/download/Siren-Manual-EN.pdf) | [Deutsch](https://github.com/danikoenig/siren/releases/latest/download/Siren-Manual-DE.pdf)
+
+VST3 / AU / CLAP drone instrument after the Eurorack module *Siren*. Play one note (or press START DRONE): the note is the root,
 and 21 oscillators stacked in Just Intonation swell in over a very long attack. No CV inputs; everything is a knob.
 
 **Drone**: Root (when no MIDI is playing), Attack / Release (up to 120 s / 180 s), Stagger (root triad enters first, upper layers follow), Glide.
