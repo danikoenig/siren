@@ -1,0 +1,25 @@
+name: build
+on:
+  push: { branches: [main], tags: ['v*'] }
+  workflow_dispatch:
+jobs:
+  macos:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch JUCE
+        run: git clone --depth 1 --branch 8.0.6 https://github.com/juce-framework/JUCE.git libs/JUCE
+      - name: Build (arm64)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64
+          cmake --build build
+      - name: Package
+        run: |
+          mkdir out && cp -R build/Siren_artefacts/Release/VST3/Siren.vst3 build/Siren_artefacts/Release/AU/Siren.component out/
+          cd out && zip -r ../Siren-macOS-arm64.zip .
+      - uses: actions/upload-artifact@v4
+        with: { name: Siren-macOS-arm64, path: Siren-macOS-arm64.zip }
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with: { files: Siren-macOS-arm64.zip }

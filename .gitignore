@@ -1,0 +1,4 @@
+build/
+libs/JUCE/
+tests/render_test
+*.wav
