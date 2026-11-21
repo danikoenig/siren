@@ -1,4 +1,4 @@
-## Siren v1.0.0
+## Siren v1.1.0
 
 Drone generator after the Eurorack module Siren (VST3 / Audio Unit, Apple Silicon).
 
