@@ -1,3 +1,7 @@
+### New in v1.2.4
+- **Reverb rebuilt**: 16-line network with modulated delays and stronger diffusion, so it no longer rings on held drone notes
+- Fixed a glitch in the Tone filter and level jumps when turning Decay
+
 ### New in v1.2.3
 - **Manuals**: new PDF manuals in English and German, attached to this release (also linked on the download page)
 - Manual covers quick start, every control, recipes and install

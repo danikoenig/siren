@@ -139,25 +139,27 @@ struct SVF
 };
 
 // ------------------------------------------------------------------- reverb
-// 8-line feedback delay network with Hadamard mixing, input diffusion, pre-delay and a bipolar tone filter on the wet signal.
+// 16-line feedback delay network (Hadamard), 6-stage input diffusion, slowly modulated delays so a held drone
+// can not excite fixed resonances, decay-dependent damping, pre-delay and a bipolar tone filter on the wet signal.
 class Reverb
 {
 public:
+    static constexpr int N = 16;
     void prepare(double sampleRate)
     {
         sr = sampleRate;
-        static const double ms[8] = { 29.7, 37.1, 41.1, 43.7, 53.9, 59.3, 67.7, 71.9 };
-        for (int i = 0; i < 8; ++i) { len[i] = (float) (ms[i] * 0.001 * sr); line[i].assign((size_t) len[i] + 256, 0.0f); w[i] = 0; lp[i] = 0; }
-        static const int ap[4] = { 142, 107, 379, 277 };
-        for (int i = 0; i < 4; ++i) { apLen[i] = std::max(8, (int) (ap[i] * sr / 29500.0)); apBuf[i].assign((size_t) apLen[i], 0.0f); apPos[i] = 0; }
-        pre.assign((size_t) (0.3 * sr) + 8, 0.0f); preW = 0; lfoPh = 0; toneL = toneR = SVF();
+        static const double ms[N] = { 31.7, 37.9, 43.3, 47.9, 53.1, 59.9, 67.3, 73.7, 81.1, 89.3, 97.9, 107.3, 117.1, 127.7, 139.3, 151.9 };
+        for (int i = 0; i < N; ++i) { len[i] = (float) (ms[i] * 0.001 * sr); line[i].assign((size_t) len[i] + 1024, 0.0f); w[i] = 0; lp[i] = 0; phase[i] = (double) i / N; }
+        static const int ap[6] = { 113, 163, 241, 337, 449, 577 };
+        for (int i = 0; i < 6; ++i) { apLen[i] = std::max(8, (int) (ap[i] * sr / 48000.0)); apBuf[i].assign((size_t) apLen[i], 0.0f); apPos[i] = 0; }
+        pre.assign((size_t) (0.3 * sr) + 8, 0.0f); preW = 0; toneL = SVF(); toneR = SVF(); decaySm = decay; gDirty = true;
     }
 
     void set(float mixAmt, float decaySec, float preMs, float tone)
     {
         mix = mixAmt; decay = std::max(0.2f, decaySec); preSamples = std::min((int) pre.size() - 2, (int) (preMs * 0.001 * sr)); toneAmt = tone;
-        if (tone < -0.01f) { toneL.set(20000.0 * std::pow(0.02, -(double) tone), sr, 0.0f); toneR = toneL; toneType = 0; }
-        else if (tone > 0.01f) { toneL.set(30.0 * std::pow(60.0, (double) tone), sr, 0.0f); toneR = toneL; toneType = 2; }
+        if (tone < -0.01f) { const double fc = 20000.0 * std::pow(0.02, -(double) tone); toneL.set(fc, sr, 0.0f); toneR.set(fc, sr, 0.0f); toneType = 0; }
+        else if (tone > 0.01f) { const double fc = 30.0 * std::pow(60.0, (double) tone); toneL.set(fc, sr, 0.0f); toneR.set(fc, sr, 0.0f); toneType = 2; }
     }
 
     void process(float inL, float inR, float& outL, float& outR)
@@ -166,49 +168,58 @@ public:
         pre[(size_t) preW] = x;
         int rp0 = preW - preSamples; if (rp0 < 0) rp0 += (int) pre.size();
         x = pre[(size_t) rp0]; if (++preW >= (int) pre.size()) preW = 0;
-        for (int i = 0; i < 4; ++i)                                // input diffusion
+        for (int i = 0; i < 6; ++i)                                // input diffusion
         {
-            float& s = apBuf[i][(size_t) apPos[i]]; const float y = s - 0.6f * x; s = x + 0.6f * y; x = y;
+            float& sbuf = apBuf[i][(size_t) apPos[i]]; const float y = sbuf - 0.7f * x; sbuf = x + 0.7f * y; x = y;
             if (++apPos[i] >= apLen[i]) apPos[i] = 0;
         }
-        // energy-normalised injection: steady-state wet level ~ input level regardless of decay time
-        const float gAvg = std::pow(10.0f, -3.0f * 0.05f / decay);
-        const float inj = x * 0.35355339f * std::sqrt(std::max(1e-4f, 1.0f - gAvg * gAvg));
-
-        lfoPh += 0.35 / sr; lfoPh -= std::floor(lfoPh);
-        float y[8];
-        for (int i = 0; i < 8; ++i)
+        // decay is smoothed so turning the knob never jumps in level
+        if (std::abs(decay - decaySm) > 1e-4f * decaySm) { decaySm += (decay - decaySm) * 0.0004f; gDirty = true; }
+        if (gDirty)
         {
-            const float mod = 6.0f * (float) std::sin(kTwoPi * (lfoPh * (0.7 + 0.13 * i) + i * 0.17));
+            for (int i = 0; i < N; ++i) g[i] = std::pow(10.0f, -3.0f * (len[i] / (float) sr) / decaySm);
+            const float gAvg = std::pow(10.0f, -3.0f * 0.09f / decaySm);
+            injGain = 0.21f * std::sqrt(std::max(1e-4f, 1.0f - gAvg * gAvg));
+            damp = 0.62f - 0.22f * std::min(1.0f, decaySm / 30.0f);       // longer tails get darker
+            gDirty = false;
+        }
+        const float inj = x * injGain;
+
+        float y[N];
+        for (int i = 0; i < N; ++i)
+        {
+            phase[i] += (0.045 + 0.011 * i) / sr; phase[i] -= std::floor(phase[i]);
+            const float mod = 14.0f * (float) std::sin(kTwoPi * phase[i]);
             float rp = (float) w[i] - (len[i] + mod); const int sz = (int) line[i].size();
             while (rp < 0) rp += (float) sz;
             const int i0 = (int) rp; const float fr = rp - (float) i0; const int i1 = (i0 + 1) % sz;
             const float v = line[i][(size_t) (i0 % sz)] * (1.0f - fr) + line[i][(size_t) i1] * fr;
-            lp[i] += 0.55f * (v - lp[i]);                          // fixed damping: highs decay a bit faster
+            lp[i] += damp * (v - lp[i]);
             y[i] = lp[i];
         }
-        float h[8]; for (int i = 0; i < 8; ++i) h[i] = y[i];
-        for (int s = 1; s < 8; s <<= 1)
-            for (int i = 0; i < 8; i += s * 2) for (int j = i; j < i + s; ++j) { const float a = h[j], b = h[j + s]; h[j] = a + b; h[j + s] = a - b; }
-        const float norm = 0.35355339f;
-        for (int i = 0; i < 8; ++i)
+        float h[N]; for (int i = 0; i < N; ++i) h[i] = y[i];
+        for (int st = 1; st < N; st <<= 1)
+            for (int i = 0; i < N; i += st * 2) for (int j = i; j < i + st; ++j) { const float a = h[j], b = h[j + st]; h[j] = a + b; h[j + st] = a - b; }
+        const float norm = 0.25f;
+        for (int i = 0; i < N; ++i)
         {
-            const float g = std::pow(10.0f, -3.0f * (len[i] / (float) sr) / decay);
             const int sz = (int) line[i].size();
-            line[i][(size_t) w[i]] = inj * ((i & 1) ? -1.0f : 1.0f) + h[i] * norm * g;
+            line[i][(size_t) w[i]] = inj * ((i & 1) ? -1.0f : 1.0f) + h[i] * norm * g[i];
             if (++w[i] >= sz) w[i] = 0;
         }
-        float wl = 0.7f * (y[0] + y[2] + y[4] + y[6]), wr = 0.7f * (y[1] + y[3] + y[5] + y[7]);
+        float wl = 0.0f, wr = 0.0f;
+        for (int i = 0; i < N; i += 2) { wl += y[i]; wr += y[i + 1]; }
+        wl *= 0.5f; wr *= 0.5f;
         if (std::abs(toneAmt) > 0.01f) { wl = toneL.process(wl, toneType); wr = toneR.process(wr, toneType); }
         outL = inL * (1.0f - mix) + wl * mix;
         outR = inR * (1.0f - mix) + wr * mix;
     }
 
 private:
-    double sr = 48000, lfoPh = 0;
-    std::array<std::vector<float>, 8> line; std::array<float, 8> len{}, lp{}; std::array<int, 8> w{};
-    std::array<std::vector<float>, 4> apBuf; std::array<int, 4> apLen{}, apPos{};
-    std::vector<float> pre; int preW = 0, preSamples = 0, toneType = 0; float mix = 0, decay = 8, toneAmt = 0; SVF toneL, toneR;
+    double sr = 48000;
+    std::array<std::vector<float>, N> line; std::array<float, N> len{}, lp{}, g{}; std::array<int, N> w{}; std::array<double, N> phase{};
+    std::array<std::vector<float>, 6> apBuf; std::array<int, 6> apLen{}, apPos{};
+    std::vector<float> pre; int preW = 0, preSamples = 0, toneType = 0; float mix = 0, decay = 8, decaySm = 8, toneAmt = 0, injGain = 0.1f, damp = 0.5f; bool gDirty = true; SVF toneL, toneR;
 };
 
 // ------------------------------------------------------------------ widener helper
