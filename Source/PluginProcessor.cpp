@@ -54,6 +54,7 @@ void SirenProcessor::processBlock(AudioBuffer<float>& buf, MidiBuffer& midi)
 {
     ScopedNoDenormals nd;
     using namespace siren;
+    if (panicRequested.exchange(false)) { held.clear(); sustain = false; engine.silence(); }
     for (const auto m : midi)
     {
         const auto msg = m.getMessage();

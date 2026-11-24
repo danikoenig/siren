@@ -134,6 +134,8 @@ HOW TO USE (SHORT)
 - STEREO: WIDTH widens the drone, MOVE adds a slow left/right drift.
 - OUT: LIMITER = threshold with auto gain (turn it down and the drone gets
   denser and louder, the ring shows gain reduction). LEVEL = master volume.
+- RESET / PANIC: right-click the header (or click SIREN) for "Reset all to
+  default" and "Panic: silence now".
 - MIDI: note = root, sustain pedal and pitch bend work.
 
 
@@ -308,6 +310,8 @@ KURZ ZUR BEDIENUNG
   Links/Rechts-Bewegung.
 - OUT: LIMITER = Threshold mit Auto-Gain (runterdrehen = dichter und lauter,
   der Ring zeigt die Gain Reduction). LEVEL = Gesamtlautstärke.
+- RESET / PANIC: Rechtsklick auf die Kopfzeile (oder Klick auf SIREN) für
+  "Reset all to default" und "Panic: silence now".
 - MIDI: Note = Root, Sustain-Pedal und Pitch Bend funktionieren.
 
 

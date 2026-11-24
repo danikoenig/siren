@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.22)
-project(Siren VERSION 1.2.4)
+project(Siren VERSION 1.3.0)
 set(CMAKE_CXX_STANDARD 17)
 # JUCE: local path (-DJUCE_PATH=...) or automatic download
 if(DEFINED JUCE_PATH)

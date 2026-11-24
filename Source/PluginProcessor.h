@@ -27,6 +27,8 @@ public:
     juce::AudioProcessorValueTreeState apvts;
     std::array<std::atomic<float>, siren::kNumLfo> lfoOut {};
     std::atomic<float> envOut { 0 }, grDb { 0 };
+    std::atomic<bool> panicRequested { false };
+    void requestPanic() { panicRequested = true; }     // silence now (message thread -> audio thread)
 
 private:
     static juce::AudioProcessorValueTreeState::ParameterLayout layout();

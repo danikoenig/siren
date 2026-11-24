@@ -180,6 +180,27 @@ public:
         }
     }
 
+    // right click on the header (or click on the SIREN title): reset everything or silence now
+    void mouseDown (const juce::MouseEvent& e) override
+    {
+        const bool inHeader = e.position.y < (float) (margin + headerH + 6);
+        const bool title = e.position.x < 240.0f && inHeader;
+        if (! inHeader || ! (e.mods.isPopupMenu() || title)) return;
+        juce::PopupMenu m;
+        m.addItem (1, "Reset all to default");
+        m.addItem (2, "Panic: silence now");
+        m.showMenuAsync (juce::PopupMenu::Options().withTargetComponent (this).withTargetScreenArea (localAreaToGlobal (juce::Rectangle<int> ((int) e.position.x, (int) e.position.y, 1, 1))).withMinimumWidth (190),
+                         [this] (int r)
+        {
+            if (r == 0) return;
+            if (auto* g = proc.apvts.getParameter ("gate")) { g->beginChangeGesture(); g->setValueNotifyingHost (0.0f); g->endChangeGesture(); }
+            if (r == 1)
+                for (auto* prm : proc.getParameters())
+                    if (auto* q = dynamic_cast<juce::RangedAudioParameter*> (prm)) { q->beginChangeGesture(); q->setValueNotifyingHost (q->getDefaultValue()); q->endChangeGesture(); }
+            proc.requestPanic();
+        });
+    }
+
     void resized() override
     {
         auto area = getLocalBounds().reduced (margin);

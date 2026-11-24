@@ -1,3 +1,6 @@
+### New in v1.3.0
+- **Reset and Panic**: right-click the header (or click SIREN) for "Reset all to default" and "Panic: silence now" (stops the drone and the reverb tail at once)
+
 ### New in v1.2.4
 - **Reverb rebuilt**: 16-line network with modulated delays and stronger diffusion, so it no longer rings on held drone notes
 - Fixed a glitch in the Tone filter and level jumps when turning Decay

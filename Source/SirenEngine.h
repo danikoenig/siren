@@ -155,6 +155,13 @@ public:
         pre.assign((size_t) (0.3 * sr) + 8, 0.0f); preW = 0; toneL = SVF(); toneR = SVF(); decaySm = decay; gDirty = true;
     }
 
+    void clear()
+    {
+        for (auto& l : line) std::fill(l.begin(), l.end(), 0.0f);
+        for (auto& b : apBuf) std::fill(b.begin(), b.end(), 0.0f);
+        std::fill(pre.begin(), pre.end(), 0.0f); lp.fill(0.0f); toneL.ic1 = toneL.ic2 = toneR.ic1 = toneR.ic2 = 0.0f;
+    }
+
     void set(float mixAmt, float decaySec, float preMs, float tone)
     {
         mix = mixAmt; decay = std::max(0.2f, decaySec); preSamples = std::min((int) pre.size() - 2, (int) (preMs * 0.001 * sr)); toneAmt = tone;
@@ -242,6 +249,7 @@ public:
     }
     int latency() const { return N; }
     float lastGain() const { return env; }
+    void clear() { std::fill(dl.begin(), dl.end(), 0.0f); std::fill(dr.begin(), dr.end(), 0.0f); std::fill(tg.begin(), tg.end(), 1.0f); std::fill(mg.begin(), mg.end(), 1.0f); sum = (double) N; env = 1.0f; }
 
     void process(float& l, float& r, float ceilingDb)
     {
@@ -273,6 +281,15 @@ public:
         for (int l = 0; l < kNumLfo; ++l) { lfoPhase[l] = hash01(l, 7.0); lfoPrev[l] = 0; lfoTgt[l] = (float) (hash01(l, 2.0) * 2 - 1); lfoVal[l] = 0; }
         for (auto& f : filt) for (auto& s : f) s = SVF();
         env = 0; first = true; bundleGainSm.fill(1.0f);
+    }
+    // panic: silence everything right now (swell, filters, reverb tail, limiter memory)
+    void silence()
+    {
+        env = 0; first = true; bundleGainSm.fill(1.0f);
+        for (int i = 0; i < kNumOsc; ++i) { incSm[i] = 0; gainL[i] = gainR[i] = 0; }
+        for (auto& f : filt) for (auto& s : f) s = SVF();
+        ap1.buf.assign(ap1.buf.size(), 0.0f); ap2.buf.assign(ap2.buf.size(), 0.0f);
+        reverb.clear(); limiter.clear();
     }
     int latencySamples() const { return limiter.latency(); }
     float getEnvelope() const { return env; }
